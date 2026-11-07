@@ -6,7 +6,7 @@ import type { OrderDetail } from '../../market/api';
 import { deliveryText } from '../../market/engine';
 import { useMarket } from '../../market/MarketContext';
 import { Band, CTA, ErrorLine, KV, Loading, Row, Section, t, TNav, TScreen, tt, won } from '../../ui/toss';
-import { Appear, CheckDraw, StepBar } from '../../ui/motion';
+import { CheckDraw, StepBar } from '../../ui/motion';
 
 // 거래 진행(V2-5): 상태 문장 → 4칸 진행 막대 → 안내 → 주문 정보 → 단계별 버튼(판매자: 전달 완료 / 구매자: 티켓 받았어요).
 const STEPS = ['결제', '전달', '수령 확인', '정산'];
@@ -64,9 +64,7 @@ export default function OrderScreen() {
         {(paid === '1' && o.status !== 'cancelled') || o.status === 'settled' ? (
           <CheckDraw key={o.status} size={56} gentle />
         ) : null}
-        <Appear key={`t-${o.status}`}>
-          <Text accessibilityRole="header" style={tt.hero}>{title}</Text>
-        </Appear>
+        <Text accessibilityRole="header" style={tt.hero}>{title}</Text>
         {o.status !== 'cancelled' ? <StepBar steps={STEPS} done={done} /> : null}
       </View>
       <Band />

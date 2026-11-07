@@ -46,7 +46,7 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          {/* 화면 전환(APP-028): 탐색은 옆으로 밀기, 결제·로그인은 아래에서 올라오는 시트, 결제 후 거래 화면은 페이드. 제스처 뒤로가기 유지. */}
+          {/* 화면 전환: 탐색·거래 상세는 옆으로 밀기, 결제·로그인은 아래에서 올라오는 시트. 제스처 뒤로가기 유지. */}
           {(
             [
               ['about', 'slide_from_right'],
@@ -55,7 +55,7 @@ export default function RootLayout() {
               ['performance-listings/[id]', 'slide_from_right'],
               ['item/[id]', 'slide_from_right'],
               ['checkout/[id]', 'slide_from_bottom'],
-              ['order/[id]', 'fade'],
+              ['order/[id]', 'slide_from_right'],
               ['login', 'slide_from_bottom'],
               ['notifications', 'slide_from_right'],
             ] as const
@@ -67,7 +67,7 @@ export default function RootLayout() {
                 headerShown: false,
                 contentStyle: { backgroundColor: '#FFFFFF' },
                 animation,
-                animationDuration: animation === 'fade' ? 260 : 340,
+                animationDuration: 340,
                 gestureEnabled: true,
                 ...(animation === 'slide_from_bottom' ? { gestureDirection: 'vertical' as const } : null),
               }}

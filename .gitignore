@@ -31,3 +31,7 @@ server/var/
 /automation/sessions.json
 /automation/runner.lock
 /server/eval/results-*.json
+
+
+# APM dependencies
+apm_modules/

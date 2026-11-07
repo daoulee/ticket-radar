@@ -5,3 +5,12 @@ targets:
 dependencies:
   apm:
     - anthropics/skills/skills/frontend-design#main
+    - expo/skills/plugins/expo/skills/expo-overview#main
+    - expo/skills/plugins/expo/skills/expo-native-ui#main
+    - expo/skills/plugins/expo/skills/expo-ui#main
+    - expo/skills/plugins/expo/skills/expo-animation#main
+    - expo/skills/plugins/expo/skills/expo-design-system#main
+    - expo/skills/plugins/expo/skills/expo-router#main
+    - vercel-labs/agent-skills/skills/web-design-guidelines#main
+    - github/awesome-copilot/skills/javascript-typescript-jest#main
+    - vercel-labs/agent-skills/skills/react-best-practices#main

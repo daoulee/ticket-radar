@@ -1,5 +1,10 @@
 # 티켓레이더 할 일 목록 (Todolist)
 
+## 2026-11-07 개발 스킬·APM
+- [x] 기존 frontend-design 유지, Expo 앱 UI·모션·라우팅, 웹 접근성·React, TypeScript/Jest 스킬을 프로젝트 APM 잠금 파일에 추가한다. 적용 범위와 중복·제외 근거는 [스킬 안내](docs/APM_SKILLS.md) 참고.
+- [ ] GitHub Dependabot이 변경된 전체 APM 의존성을 실제로 검사했는지와 업데이트 PR 생성 여부를 별도로 확인한다.
+- [ ] 새 스킬이 다른 AI 환경에서도 로드되는지 확인하고, 실제 프로젝트 작업에 적용한 효과는 별도 검증한다.
+
 - 만든 날: 2026-11-03 (사용자 요청 "Todolist에 기록해두자")
 - 작성: 앱 담당(Claude Code, claude-opus-5-5)
 - 근거: Communicate.md APP-019 ~ APP-025-R

@@ -1,0 +1,9 @@
+.ticket-intro { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #dae0ef; pointer-events: none; }
+.ticket-intro canvas { width: 100%; height: 100%; position: absolute; inset: 0; opacity: 0; filter: drop-shadow(0 20px 18px #13233a55); pointer-events: auto; cursor: grab; }
+.ticket-intro canvas.is-dragging { cursor: grabbing; }
+.ticket-intro canvas.is-ready { opacity: 1; }
+.ticket-intro-hint { position: absolute; bottom: max(32px, env(safe-area-inset-bottom)); margin: 0; color: #526173; font-size: 14px; }
+.ticket-intro-fallback { position: relative; color: #526173; font-size: 15px; }
+.ticket-intro-fallback[hidden] { display: none; }
+.ticket-intro-skip { position: absolute; top: max(24px, env(safe-area-inset-top)); right: max(24px, env(safe-area-inset-right)); z-index: 1; pointer-events: auto; border: 1px solid #c9cddd; border-radius: 999px; padding: 12px 18px; color: #13233a; background: #fff; font: inherit; cursor: pointer; }
+.ticket-intro-skip:focus-visible { outline: 3px solid #404890; outline-offset: 3px; }

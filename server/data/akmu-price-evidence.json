@@ -1,0 +1,10 @@
+{
+  "eventId": "akmu-daegu-20261121",
+  "sourceUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+  "sourceText": "·티켓 가격: 스탠딩&VIP석 176,000원 / R석 165,000원 / 시야제한 154,000원",
+  "verifiedDate": "2026-11-01",
+  "reviewRecordedAt": "2026-11-01T23:10:52+09:00",
+  "verificationMethod": "Sol manually read the official YES24 notice with web tool during ASTRA-016 R2 correction",
+  "scope": "price quotation only; existing policy/date snapshots were not globally reverified",
+  "canonicalUpdateOwner": "Astra; docs/official unchanged"
+}

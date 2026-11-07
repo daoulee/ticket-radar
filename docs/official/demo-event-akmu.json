@@ -1,0 +1,22 @@
+{
+  "eventId": "akmu-daegu-20261121",
+  "title": "2026 AKMU CONCERT TOUR - 대구",
+  "sourceUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+  "verifiedDate": "2026-10-29",
+  "status": "official_notice_reviewed_not_integrated",
+  "showtimes": ["2026-11-21T17:00:00+09:00", "2026-11-22T16:00:00+09:00"],
+  "pricesKrw": {"standing": 176000, "VIP": 176000, "R": 165000, "restrictedView": 154000},
+  "priceScope": "공지 기본가. 수수료·할인·묶음 총액 조건은 별도 확인 필요",
+  "policies": [{
+    "scope": "fanclub_presale",
+    "summary": "팬클럽 회원, 예매자, 관람자 일치와 현장 신원 확인이 요구됨",
+    "shortQuote": "실관람자가 모두 동일인이어야 합니다.",
+    "applyOnlyWhen": "팬클럽 선예매임을 원문 근거 또는 사용자 확인으로 확인한 경우",
+    "unknownScopeBehavior": "일반예매에 선예매 조건을 적용하지 않고 추가 확인으로 표시"
+  }],
+  "syntheticListing": "AKMU 대구 11월 21일 오후 5시 VIP 한 장, 티켓 금액만 25만원입니다. 팬클럽 선예매로 샀고 예매자는 저지만 구매자 혼자 가면 됩니다.",
+  "syntheticListingLabel": "시연용으로 작성한 합성 판매글. 실제 판매자나 위법 사례가 아님",
+  "comparisonPrerequisites": ["공연·회차·좌석 일치", "1매 가격", "수수료·할인 기준 일치 또는 티켓 기본가 비교임을 명시"],
+  "expectedBasePriceDifferenceKrw": 74000,
+  "missingBeforeLiveDemo": ["현재 상품 상세 공지 변경 재확인", "서버 데이터 적용", "API 응답의 출처·정확한 확인 시각", "새 문장 실제 AI 추출 검증"]
+}

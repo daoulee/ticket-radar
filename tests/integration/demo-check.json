@@ -1,0 +1,21 @@
+{
+  "isDemo": true,
+  "dataMode": "demo",
+  "extracted": {
+    "price": {"value": 150000, "evidenceQuote": "1매 15만원", "status": "extracted"},
+    "seatGrade": {"value": "R", "evidenceQuote": "R석", "status": "extracted"},
+    "deliveryMethod": {"value": null, "evidenceQuote": "", "status": "unknown"}
+  },
+  "findings": [
+    {
+      "type": "price",
+      "status": "matched",
+      "listingQuote": "R석 1매 15만원",
+      "officialExcerpt": "합성 기준 가격: R석 1매 100000원",
+      "sourceUrl": "https://example.invalid/demo-policy",
+      "checkedAt": "2026-10-28T00:00:00+09:00",
+      "reason": "검증기용 합성 예시. 실제 공연·공식 근거가 아님. 동일 조건으로 설정한 가격 차이를 표시함."
+    }
+  ],
+  "priceComparison": {"diff": 50000, "ratePercent": 50}
+}

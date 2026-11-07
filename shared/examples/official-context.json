@@ -1,0 +1,64 @@
+{
+  "eventId": "akmu-daegu-20261121",
+  "priceTiers": [
+    {
+      "seatGrade": "스탠딩",
+      "showtimeId": null,
+      "facePrice": 176000,
+      "sourceText": "·티켓 가격: 스탠딩&VIP석 176,000원 / R석 165,000원 / 시야제한 154,000원",
+      "sourceUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+      "verifiedAt": "2026-11-01",
+      "priceBasis": "per_ticket",
+      "feeBasis": "ticket_only",
+      "discountStatus": "standard"
+    },
+    {
+      "seatGrade": "VIP",
+      "showtimeId": null,
+      "facePrice": 176000,
+      "sourceText": "·티켓 가격: 스탠딩&VIP석 176,000원 / R석 165,000원 / 시야제한 154,000원",
+      "sourceUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+      "verifiedAt": "2026-11-01",
+      "priceBasis": "per_ticket",
+      "feeBasis": "ticket_only",
+      "discountStatus": "standard"
+    },
+    {
+      "seatGrade": "R",
+      "showtimeId": null,
+      "facePrice": 165000,
+      "sourceText": "·티켓 가격: 스탠딩&VIP석 176,000원 / R석 165,000원 / 시야제한 154,000원",
+      "sourceUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+      "verifiedAt": "2026-11-01",
+      "priceBasis": "per_ticket",
+      "feeBasis": "ticket_only",
+      "discountStatus": "standard"
+    },
+    {
+      "seatGrade": "시야제한",
+      "showtimeId": null,
+      "facePrice": 154000,
+      "sourceText": "·티켓 가격: 스탠딩&VIP석 176,000원 / R석 165,000원 / 시야제한 154,000원",
+      "sourceUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+      "verifiedAt": "2026-11-01",
+      "priceBasis": "per_ticket",
+      "feeBasis": "ticket_only",
+      "discountStatus": "standard"
+    }
+  ],
+  "policies": [
+    {
+      "id": "identity-1",
+      "type": "identity_check",
+      "title": "팬클럽 선예매 관람자 본인 확인",
+      "excerpt": "실관람자가 모두 동일인이어야 합니다.",
+      "sourceUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+      "verifiedAt": "2026-10-29",
+      "scope": "fanclub_presale"
+    }
+  ],
+  "isDemo": false,
+  "sourceType": "official",
+  "sourceVersion": "sha256:37f23141d317d7b6106cfc406cd8e732e6bf544d6e85e31d097987493dc0d3eb",
+  "sourceDatePrecision": "date"
+}

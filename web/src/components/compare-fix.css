@@ -1,0 +1,8 @@
+@import './compare-mobile-fix.css';
+
+/* Reserve space for the enlarged number: transforms do not affect inline layout. */
+#story-compare .l-pair-price + .l-verdict strong {
+  display: inline-block;
+  margin-inline-end: .65em;
+  white-space: nowrap;
+}

@@ -1,0 +1,7 @@
+/* The official card translates downward while it enters; reserve that motion
+   distance before the status chip because transforms do not affect layout. */
+@media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
+  .landing.fx #story-compare .l-pair:not(.l-pair-price) + .l-verdict {
+    margin-top: 30px;
+  }
+}

@@ -1,0 +1,33 @@
+/* Review only: clear groups with compact fields while retaining every control and evidence. */
+.review-card { background: #fff; border: 1px solid rgba(19, 35, 58, .08); padding: 28px; }
+.review-card .card-head h2 { font-size: 24px; }
+.review-card > .muted { margin: 12px 0 16px; }
+.review-card .extraction-line { margin-top: 14px; }
+.review-event { display: flex; gap: 8px 14px; align-items: baseline; flex-wrap: wrap; margin-top: 14px; padding: 12px 16px; background: #f3f6fb; border-radius: 12px; }
+.review-event span { color: #526173; font-size: 13px; font-weight: 600; }
+.review-event strong { font-size: 15px; overflow-wrap: anywhere; }
+.review-group-heading { margin-top: 28px; padding-bottom: 8px; border-bottom: 1px solid rgba(19,35,58,.10); }
+.review-group-heading h3 { margin: 0; font-size: 19px; }
+.review-group-heading p { margin: 4px 0 0; font-size: 14px; color: #526173; }
+.review-fields.field-grid { gap: 0 24px; margin-top: 2px; }
+.review-fields .field-row { background: transparent; border-radius: 0; box-shadow: none; padding: 12px 0 14px; border-bottom: 1px solid rgba(19,35,58,.08); min-width: 0; }
+.review-fields .field-row.status-ambiguous { box-shadow: none; }
+.review-fields .field-row .row-between { align-items: baseline; gap: 4px 8px; }
+.review-fields .field-label { font-size: 15px; margin: 0 0 7px; }
+.review-fields .field-row select, .review-fields .field-row input { background-color: #f6f8fb; min-height: 48px; }
+.review-fields .field-row .evidence { font-size: 13px; margin-top: 6px; }
+.review-status { color: #526173; font-size: 12px; font-weight: 600; }
+.review-status-ambiguous { color: #92400e; }
+/* The control already says '확인 불가'; keep repetitive absence details available to assistive technology. */
+.review-fields .review-status-unknown,
+.review-fields .field-row.status-unknown .evidence { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.review-card .state-warn { margin-top: 20px; }
+.official { background: #f6f8fb; }
+.official .source-meta { font-size: 12px; }
+.official .policy-list { gap: 10px; }
+.official .policy-list li + li { border-top: 1px solid rgba(19,35,58,.08); padding-top: 10px; }
+@media (max-width: 640px) {
+  .review-card { padding: 20px 16px; }
+  .review-fields.field-grid { grid-template-columns: minmax(0,1fr); }
+  .review-group-heading { margin-top: 24px; }
+}

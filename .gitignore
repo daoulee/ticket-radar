@@ -1,0 +1,33 @@
+# Local files and secrets
+.DS_Store
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.mobileprovision
+
+# Dependencies and generated output
+node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+coverage/
+dist/
+build/
+*.log
+
+# Server runtime data (reports)
+server/var/
+
+# Local execution history, screenshots and generated evaluation outputs
+/evidence/
+/mobile/evidence/
+/web/evidence/
+/automation/runs/
+/automation/tasks/
+/automation/sessions.json
+/automation/runner.lock
+/server/eval/results-*.json

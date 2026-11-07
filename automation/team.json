@@ -1,0 +1,32 @@
+{
+  "timeout_seconds": 360,
+  "max_jobs_per_run": 3,
+  "max_attempts": 2,
+  "roles": {
+    "sol": {
+      "cli": "codex",
+      "model": "gpt-6.1-terra",
+      "source_session": "01a17ff6-78ea-7581-a9e7-18cb3b824eda",
+      "source_title": "AID 해커톤 준비해야해",
+      "paths": [
+        "server/",
+        "shared/"
+      ],
+      "display_name": "Terra 6.1"
+    },
+    "web": {
+      "cli": "claude",
+      "model": "opus",
+      "paths": [
+        "web/"
+      ]
+    },
+    "app": {
+      "cli": "claude",
+      "model": "opus",
+      "paths": [
+        "mobile/"
+      ]
+    }
+  }
+}

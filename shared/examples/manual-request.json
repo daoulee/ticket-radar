@@ -1,0 +1,20 @@
+{
+  "eventId": "akmu-daegu-20261121",
+  "listingText": "AKMU 대구 11월 21일 오후 5시 VIP 1매, 티켓 금액만 25만원입니다. 팬클럽 선예매로 샀고 예매자는 저지만 구매자 혼자 가면 됩니다.",
+  "confirmedFields": {
+    "showtimeId": "akmu-daegu-20261121-s1",
+    "seatGrade": "VIP",
+    "price": 250000,
+    "quantity": 1,
+    "deliveryMethod": null,
+    "prepaymentRequested": null,
+    "listingEventId": "akmu-daegu-20261121",
+    "bookingType": "fanclub_presale",
+    "priceBasis": "per_ticket",
+    "feeBasis": "ticket_only",
+    "discountStatus": "standard",
+    "buyerIsBooker": false
+  },
+  "extractionMode": "manual",
+  "syntheticListing": true
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "app": "Linear Mobile",
+    "label": "배경",
+    "hex": "#080808",
+    "method": "official screenshot sampled, resized and quantized to 8 steps; approximate, not official brand token"
+  },
+  {
+    "app": "Linear Mobile",
+    "label": "강조",
+    "hex": "#404890",
+    "method": "official screenshot sampled, resized and quantized to 8 steps; approximate, not official brand token"
+  },
+  {
+    "app": "Flighty",
+    "label": "배경",
+    "hex": "#181818",
+    "method": "official screenshot sampled, resized and quantized to 8 steps; approximate, not official brand token"
+  },
+  {
+    "app": "Flighty",
+    "label": "강조",
+    "hex": "#10B870",
+    "method": "official screenshot sampled, resized and quantized to 8 steps; approximate, not official brand token"
+  }
+]

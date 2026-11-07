@@ -1,0 +1,8 @@
+{
+  "httpStatus": 503,
+  "body": {
+    "code": "AI_NOT_CONFIGURED",
+    "message": "AI 제공자가 설정되지 않았습니다. 설정 후 재시도하거나 명시적인 수동 입력을 선택하세요.",
+    "retryable": false
+  }
+}

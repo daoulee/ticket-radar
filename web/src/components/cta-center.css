@@ -1,0 +1,9 @@
+.btn-flow .roll-with-arrow .roll-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+}
+
+/* 마지막에 정의된 기존 hover 정렬보다 구체적으로 묶음 전체를 중앙에 둔다. */
+.btn-flow .roll-with-arrow .roll-hover { justify-self: center; }

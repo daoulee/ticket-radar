@@ -1,0 +1,39 @@
+{
+  "method": "Supplied static GLSL rendered with browser WebGL at 3x; no runtime GPU dependency",
+  "assets": [
+    {
+      "name": "cta-light",
+      "file": "suno-cta.glsl",
+      "width": 1074,
+      "height": 162,
+      "uniforms": {
+        "u_seed": 2.1,
+        "u_pink": "#2563EB",
+        "u_red": "#3B82F6",
+        "u_orange": "#38BDF8",
+        "u_yellow": "#7DD3FC",
+        "u_grain": 0.045
+      },
+      "sourceSha256": "1c58c2fdc129c1c5c430c4b297777a3b48a2452a2cc3784a158b0740fedd6506",
+      "overlay": 0.47,
+      "contrastBefore": 1.5928173880369492,
+      "contrastAfter": 4.610110140455772
+    },
+    {
+      "name": "screen-glow-light",
+      "file": "screen-glow.glsl",
+      "width": 1170,
+      "height": 2532,
+      "uniforms": {
+        "u_seed": 2.1,
+        "u_warm": "#3B82F6",
+        "u_plum": "#93C5FD",
+        "u_strength": 0.26
+      },
+      "sourceSha256": "0d68556a3353f6d1d3b65b532ccb13034e7d5588a69ec804e47c1f5caa3e661a",
+      "overlay": 0,
+      "contrastBefore": null,
+      "contrastAfter": null
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "tasks": [
+    {
+      "id": "20261101-233712-8a9f11",
+      "role": "app",
+      "status": "verified",
+      "session": "7758412b-c505-4407-8848-922691865897"
+    },
+    {
+      "id": "20261101-233851-0eca49",
+      "role": "app",
+      "status": "verified",
+      "session": "7758412b-c505-4407-8848-922691865897"
+    },
+    {
+      "id": "20261101-233851-bb4c45",
+      "role": "sol",
+      "status": "verified",
+      "session": "01a1978b-7dd5-76f1-911c-c2f69e732d57"
+    },
+    {
+      "id": "20261101-233712-6c284e",
+      "role": "sol",
+      "status": "verified",
+      "session": "01a1978b-7dd5-76f1-911c-c2f69e732d57"
+    },
+    {
+      "id": "20261101-233712-377855",
+      "role": "web",
+      "status": "verified",
+      "session": "d4afaec1-7a35-4332-a3d8-ff50debf7825"
+    }
+  ],
+  "sol_model_from_session_metadata": "gpt-6.1-sol",
+  "unit_tests": 6,
+  "note": "Connectivity and resume verified; no product implementation or deployment"
+}

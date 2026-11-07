@@ -1,0 +1,2 @@
+/* Never show a partially loaded WebGL canvas on top of the CSS fallback. */
+.phone-three:not(.is-ready) canvas { visibility: hidden; }

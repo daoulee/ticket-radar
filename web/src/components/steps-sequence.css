@@ -1,0 +1,17 @@
+/* 한 단계의 밑줄이 끝나면 선이 다음 단계에 도착하고, 다음 밑줄이 이어진다. */
+@media (prefers-reduced-motion: no-preference) {
+  .fx #story-steps .l-step-first .l-step-highlight {
+    background-size: calc(clamp(0, (var(--p, 0) - .12) / .20, 1) * 100%) 100%;
+  }
+  .fx #story-steps .l-step-highlight.l-step-highlight-2 {
+    background-size: calc(clamp(0, (var(--p, 0) - .48) / .14, 1) * 100%) 100%;
+  }
+  .fx #story-steps .l-step-highlight.l-step-highlight-3 {
+    background-size: calc(clamp(0, (var(--p, 0) - .78) / .14, 1) * 100%) 100%;
+  }
+  .fx #story-steps .l-steps::after {
+    --to-second: clamp(0, (var(--p, 0) - .34) / .12, 1);
+    --to-third: clamp(0, (var(--p, 0) - .64) / .12, 1);
+    height: calc((100% - 48px) * (.5 * var(--to-second) + .5 * var(--to-third)));
+  }
+}

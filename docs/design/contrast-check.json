@@ -1,0 +1,53 @@
+{
+  "scope": "Token pairs only, not rendered UI audit",
+  "pairs": [
+    {
+      "foreground": "ink",
+      "background": "canvas",
+      "ratio": 14.7,
+      "target": 4.5
+    },
+    {
+      "foreground": "muted",
+      "background": "surface",
+      "ratio": 6.33,
+      "target": 4.5
+    },
+    {
+      "foreground": "onPrimary",
+      "background": "primary",
+      "ratio": 12.12,
+      "target": 4.5
+    },
+    {
+      "foreground": "ink",
+      "background": "accent",
+      "ratio": 8.69,
+      "target": 4.5
+    },
+    {
+      "foreground": "link",
+      "background": "surface",
+      "ratio": 6.4,
+      "target": 4.5
+    },
+    {
+      "foreground": "neutralText",
+      "background": "neutralBg",
+      "ratio": 6.78,
+      "target": 4.5
+    },
+    {
+      "foreground": "warningText",
+      "background": "warningBg",
+      "ratio": 6.19,
+      "target": 4.5
+    },
+    {
+      "foreground": "errorText",
+      "background": "errorBg",
+      "ratio": 6.37,
+      "target": 4.5
+    }
+  ]
+}

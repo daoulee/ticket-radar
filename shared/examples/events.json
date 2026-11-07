@@ -1,0 +1,22 @@
+[
+  {
+    "id": "akmu-daegu-20261121",
+    "title": "2026 AKMU CONCERT TOUR - 대구",
+    "venue": null,
+    "showtimes": [
+      {
+        "id": "akmu-daegu-20261121-s1",
+        "startsAt": "2026-11-21T17:00:00+09:00",
+        "label": "2026-11-21T17:00:00+09:00"
+      },
+      {
+        "id": "akmu-daegu-20261121-s2",
+        "startsAt": "2026-11-22T16:00:00+09:00",
+        "label": "2026-11-22T16:00:00+09:00"
+      }
+    ],
+    "officialUrl": "https://m.ticket.yes24.com/Notice/18447?order=1&type=1",
+    "sourceCheckedAt": "2026-10-29",
+    "isDemo": false
+  }
+]

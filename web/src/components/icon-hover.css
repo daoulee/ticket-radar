@@ -1,0 +1,13 @@
+.door-icons { position: relative; display: block; width: 44px; height: 44px; margin-bottom: 12px; }
+.door-icons .draw-icon { margin-bottom: 0; }
+.door-frame path:last-child { opacity: 0; }
+.door-icons { perspective: 150px; }
+.door-panel { position: absolute; inset: 0; transform-box: view-box; transform-origin: 79.17% 50%; backface-visibility: hidden; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .l-limit:hover .ticket-hover { animation: ticket-sway 1.8s ease-in-out infinite; transform-origin: center; }
+  .l-limit .door-panel { transition: transform .45s cubic-bezier(.2,0,0,1); }
+  .l-limit:hover .door-panel { transform: rotateY(-68deg); }
+  .l-limit:hover .gavel-hover { animation: gavel-tap 1.2s ease-in-out infinite; transform-origin: 24% 80%; }
+  @keyframes ticket-sway { 0%,100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(-3px) rotate(-5deg); } 75% { transform: translateY(2px) rotate(5deg); } }
+  @keyframes gavel-tap { 0%,100% { transform: rotate(0); } 30% { transform: rotate(-22deg); } 50%,65% { transform: rotate(8deg); } }
+}

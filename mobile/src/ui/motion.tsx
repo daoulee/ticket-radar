@@ -153,13 +153,13 @@ export function PopBadge({ count, color = T.red }: { count: number; color?: stri
 
 const APath = Animated.createAnimatedComponent(Path);
 /** 완료 체크가 그려지는 짧은 모션(원 → 체크, 약 0.6초). 이동은 이 모션을 기다리지 않는다. */
-export function CheckDraw({ size = 72, color = T.primary }: { size?: number; color?: string }) {
+export function CheckDraw({ size = 72, color = T.primary, gentle = false }: { size?: number; color?: string; gentle?: boolean }) {
   const p = useSharedValue(0);
-  const scale = useSharedValue(0.6);
+  const scale = useSharedValue(gentle ? 0.96 : 0.6);
   useEffect(() => {
-    p.set(withTiming(1, { duration: 520, easing: ease, reduceMotion: RM }));
-    scale.set(withSpring(1, { damping: 10, stiffness: 180, reduceMotion: RM }));
-  }, [p, scale]);
+    p.set(withTiming(1, { duration: gentle ? 260 : 520, easing: ease, reduceMotion: RM }));
+    scale.set(gentle ? withTiming(1, { duration: 200, easing: ease, reduceMotion: RM }) : withSpring(1, { damping: 10, stiffness: 180, reduceMotion: RM }));
+  }, [gentle, p, scale]);
   const L = 30;
   const props = useAnimatedProps(() => ({ strokeDashoffset: L * (1 - p.value) }));
   const a = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));

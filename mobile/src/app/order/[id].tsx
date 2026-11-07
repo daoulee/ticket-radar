@@ -62,9 +62,7 @@ export default function OrderScreen() {
     <TScreen top={<TNav onBack={() => router.replace('/orders')} />} footer={footer ? <>{error ? <Text style={[tt.desc, { color: t.red, textAlign: 'center' }]}>{error}</Text> : null}{o.status === 'sent' && role === 'buyer' ? <Text style={[tt.desc, { textAlign: 'center' }]}>예매처 앱에 티켓이 보일 때 눌러 주세요</Text> : null}{footer}</> : undefined}>
       <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 20, gap: 16 }}>
         {(paid === '1' && o.status !== 'cancelled') || o.status === 'settled' ? (
-          <Appear key={o.status}>
-            <CheckDraw size={56} />
-          </Appear>
+          <CheckDraw key={o.status} size={56} gentle />
         ) : null}
         <Appear key={`t-${o.status}`}>
           <Text accessibilityRole="header" style={tt.hero}>{title}</Text>

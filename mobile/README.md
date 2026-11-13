@@ -29,8 +29,8 @@ LIVE_API_BASE_URL=http://127.0.0.1:3001 npm run test:live  # Sol 서버 실행 �
 npx expo run:ios      # iOS 시뮬레이터 개발 빌드 (ios/ 는 자동 생성, git 제외)
 ```
 
-실서버 모드: `cd ../server && npm start` 후 `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001 npx expo start --dev-client` (iOS 시뮬레이터는 Mac의 루프백 주소를 쓸 수 있다). `CI=1`을 붙이면 Metro가 파일 변경을 감시하지 않으니 수정 후에는 다시 시작한다.
-실기기에서는 `localhost`가 휴대폰 자신을 가리키므로 같은 Wi-Fi의 Mac IP 또는 HTTPS 주소가 필요하다.
+실서버 모드: `cd ../server && npm start` 후 `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001 npx expo start --dev-client` (iOS 시뮬레이터는 Mac의 루프백 주소를 쓸 수 있다). `CI=1`을 붙이면 Metro가 파일 변경을 감시하지 않으니 수정 후에는 다시 시작합니다.
+실기기에서는 `localhost`가 휴대폰 자신을 가리키므로 같은 Wi-Fi의 Mac IP 또는 HTTPS 주소가 필요합니다.
 
 ## 구조와 이유
 
@@ -51,19 +51,19 @@ src/
 ```
 
 - **앱에는 가격 계산·위험 판정 규칙이 없다.** 차액·비율·상태는 응답 값을 그대로 보여준다. 시연 API도 미리 계산된 응답을 찾아 돌려줄 뿐이며, 준비되지 않은 입력 조합은 "가격 비교 보류"로 돌려준다.
-- **공통 계약을 직접 불러온다.** `shared/`는 Sol 소유이며 앱은 읽기만 한다. npm 설치(`file:`) 대신 별칭으로 연결해 `shared/` 폴더에 아무것도 쓰지 않는다: `tsconfig.json` paths, `metro.config.js`(watchFolders + `@ticket-radar/shared` → `../shared/index.ts`), Jest `moduleNameMapper`. zod는 `shared/node_modules`에서 찾는다. `npx expo export --platform ios`로 Hermes 번들에 포함됨을 확인했다.
-- **시연 데이터는 앱 소유 fixture.** 웹과 같은 사례(A·B·C·공식 자료 없음)를 공통 계약 형식으로 옮겼다. 응답은 `CheckResponseSchema.parse`를 통과해야 하고, `extraction.method`는 항상 `fixture`(또는 명시적 `manual`)이다.
-- **데이터 접근은 `TicketRadarApi` 인터페이스 뒤에 있다.** 시연 ↔ 실제 API 전환 시 화면 코드는 바뀌지 않는다.
+- **공통 계약을 직접 불러온다.** `shared/`는 Sol 소유이며 앱은 읽기만 합니다. npm 설치(`file:`) 대신 별칭으로 연결해 `shared/` 폴더에 아무것도 쓰지 않는다: `tsconfig.json` paths, `metro.config.js`(watchFolders + `@ticket-radar/shared` → `../shared/index.ts`), Jest `moduleNameMapper`. zod는 `shared/node_modules`에서 찾습니다. `npx expo export --platform ios`로 Hermes 번들에 포함됨을 확인했습니다.
+- **시연 데이터는 앱 소유 fixture.** 웹과 같은 사례(A·B·C·공식 자료 없음)를 공통 계약 형식으로 옮겼다. 응답은 `CheckResponseSchema.parse`를 통과해야 하고, `extraction.method`는 항상 `fixture`(또는 명시적 `manual`)입니다.
+- **데이터 접근은 `TicketRadarApi` 인터페이스 뒤에 있다.** 시연 ↔ 실제 API 전환 시 화면 코드는 바뀌지 않습니다.
 - **실제 API 응답은 표시 전에 검사한다(`api/validate.ts`).** 1단계 공통 계약 Zod 스키마(중첩 필드·근거·모드 일관성·가격 산술), 2단계 '보낸 요청과 맞는가'(공연 ID, 인용이 보낸 판매글의 실제 구간, `appliedFields`=보낸 확인값 전체, 확인 전 무계산, manual 요청에 manual 응답). 어긋나면 `INVALID_RESPONSE`로 보여주고 성공 화면에 띄우지 않는다. 판정 규칙이 아니다. 계약에 맞지 않는 요청은 보내지 않는다(`INVALID_REQUEST`).
 - **요청 형태(v0.1.0).** 추출: `{eventId, listingText, syntheticListing:true, extractionMode:'model'}`. 재대조: 처음 응답의 `checkId`를 `previousCheckId`로, 확인값 12개 **전체**를 `confirmedFields`로. 직접 입력: 사용자가 'AI 없이 직접 입력'을 누를 때만 `extractionMode:'manual'`(AI 오류 후 자동 전환 없음). 409 `CHECK_EXPIRED_OR_MISMATCH`면 '판매글 다시 분석하기'를 보인다.
-- **비교 전제 조건 6개는 자동으로 채우지 않는다.** 공연 일치·예매 유형·가격 기준·수수료·할인·예매자 본인. 사용자가 고르지 않으면 null이고 서버가 비교를 보류한다.
-- **출처 표시.** 결과마다 추출 방식(`method`·이번 요청의 `actualModelCall`·`reused`)과 `provenance`(합성 판매글 여부·공식 자료 유형·버전)를 보여준다. 배지는 `isDemo`(합성 자료 포함 여부)이며 서버 연결 여부가 아니다. 날짜 단위 확인일에는 시각을 만들어 붙이지 않는다.
+- **비교 전제 조건 6개는 자동으로 채우지 않는다.** 공연 일치·예매 유형·가격 기준·수수료·할인·예매자 본인. 사용자가 고르지 않으면 null이고 서버가 비교를 보류합니다.
+- **출처 표시.** 결과마다 추출 방식(`method`·이번 요청의 `actualModelCall`·`reused`)과 `provenance`(합성 판매글 여부·공식 자료 유형·버전)를 보여줍니다. 배지는 `isDemo`(합성 자료 포함 여부)이며 서버 연결 여부가 아닙니다. 날짜 단위 확인일에는 시각을 만들어 붙이지 않습니다.
 - **AI 오류를 시연 데이터 성공으로 대체하지 않는다.** 실제 API 모드에서 `AI_NOT_CONFIGURED`·시간 초과 등은 서버 문구와 오류 코드를 보여주고, `retryable`일 때만 '다시 시도'를 보인다. 실제 API 모드에서는 시연 예시 버튼도 숨긴다.
 
 - **AI 추출값은 후보다.** 추출 상태(추출/후보 여러 개/찾지 못함)와 판매글 근거 문구를 보여주고, 사용자가 고친 항목에는 "사용자 수정" 표시를 한다. 수정값으로 다시 대조한 결과에는 그 사실을 표시한다(T05).
-- **작은 화면·큰 글자:** 모든 화면은 스크롤 가능, 높이 고정 없음, 칩·행은 줄바꿈(`flexWrap`), 버튼 최소 높이 48. 글자 크기 배율 제한(`allowFontScaling=false`)을 쓰지 않는다.
+- **작은 화면·큰 글자:** 모든 화면은 스크롤 가능, 높이 고정 없음, 칩·행은 줄바꿈(`flexWrap`), 버튼 최소 높이 48. 글자 크기 배율 제한(`allowFontScaling=false`)을 쓰지 않습니다.
 - **판매글은 데이터로만 다룬다.** 원문은 일반 `Text`로 표시하며 HTML·스크립트를 해석하지 않는다(T07).
-- 진위·입장 가능 여부·사기/불법을 확정하는 문구를 쓰지 않는다. 결과 화면 하단에 고지문을 둔다.
+- 진위·입장 가능 여부·사기/불법을 확정하는 문구를 쓰지 않습니다. 결과 화면 하단에 고지문을 둡니다.
 
 ## 테스트가 다루는 것
 
@@ -79,8 +79,8 @@ src/
 ## 증거
 
 - `evidence/screenshots/ios-*.png`: iPhone 17 시뮬레이터(iOS 26.5) 개발 빌드 캡처. 01~08은 웹 계약 동기화(11:30) **이전**, 09~10은 이후. 06~08은 글자 크기 accessibility-XXXL.
-  - 이 Xcode에는 Simulator 화면 앱이 없고 탭 자동화 도구도 없어서, 02~10은 개발 빌드 전용 딥링크(`dev.aid.ticketradar:///?demoScenario=A&demoStep=result`)로 화면 흐름과 같은 API 호출을 실행해 이동한 상태다. **시뮬레이터에서 손가락 탭 조작을 확인한 것은 아니다.** 탭·입력 동작은 `__tests__/flow.test.tsx`가 검증한다.
-- `evidence/screenshots/ios-live-01~04.png`: 2026-11-01 Sol 실서버(AI 미설정) 연결 iOS 시뮬레이터 — 공연 목록, AI 미설정 오류, 직접 입력 비교(+74,000원), 조건 미확인 보류. 01은 앱을 열어 서버 응답을 받은 화면, 02~04는 개발 전용 바로가기(`?devLive=extract|manual&devEvent=&devText=&devFields=`)로 화면 버튼과 같은 실제 요청을 보낸 화면이다. **손가락 탭이 아니다.**
+  - 이 Xcode에는 Simulator 화면 앱이 없고 탭 자동화 도구도 없어서, 02~10은 개발 빌드 전용 딥링크(`dev.aid.ticketradar:///?demoScenario=A&demoStep=result`)로 화면 흐름과 같은 API 호출을 실행해 이동한 상태다. **시뮬레이터에서 손가락 탭 조작을 확인한 것은 아니다.** 탭·입력 동작은 `__tests__/flow.test.tsx`가 검증합니다.
+- `evidence/screenshots/ios-live-01~04.png`: 2026-11-01 Sol 실서버(AI 미설정) 연결 iOS 시뮬레이터 — 공연 목록, AI 미설정 오류, 직접 입력 비교(+74,000원), 조건 미확인 보류. 01은 앱을 열어 서버 응답을 받은 화면, 02~04는 개발 전용 바로가기(`?devLive=extract|manual&devEvent=&devText=&devFields=`)로 화면 버튼과 같은 실제 요청을 보낸 화면입니다. **손가락 탭이 아니다.**
 - `evidence/contract/app-008-live-roundtrip.json`: 실서버 왕복 8단계 결과. `evidence/contract/mobile-*.json`·`validator-result.txt`는 10-28 구 임시 계약 기준 기록(현재 형식 아님).
 - `evidence/logs/app-008-*.txt`: 검사 결과, shared/server 무변경 해시.
 
@@ -90,7 +90,7 @@ src/
 
 ## iOS 시뮬레이터 실제 조작 검증 (XCUITest)
 
-`e2e-ios/`는 앱과 분리된 UI 테스트 전용 Xcode 프로젝트다(CNG가 만드는 `ios/`는 건드리지 않는다). 설치된 개발 빌드(`dev.aid.ticketradar`)를 번들 ID로 붙잡아 **실제 터치·길게 눌러 붙여넣기·숫자 키보드 입력**으로 조작한다. 개발용 딥링크 바로가기는 쓰지 않고, 앱 코드에 테스트 분기도 없다. 추가 설치는 필요 없다(Xcode의 XCTest만 사용).
+`e2e-ios/`는 앱과 분리된 UI 테스트 전용 Xcode 프로젝트다(CNG가 만드는 `ios/`는 건드리지 않는다). 설치된 개발 빌드(`dev.aid.ticketradar`)를 번들 ID로 붙잡아 **실제 터치·길게 눌러 붙여넣기·숫자 키보드 입력**으로 조작합니다. 개발용 딥링크 바로가기는 쓰지 않고, 앱 코드에 테스트 분기도 없습니다. 추가 설치는 필요 없다(Xcode의 XCTest만 사용).
 
 ```sh
 npx expo run:ios                 # 처음 한 번: 시뮬레이터에 개발 빌드 설치
@@ -103,7 +103,7 @@ sh scripts/ios-ui-flow.sh        # Sol 서버·Metro가 없으면 띄우고, 테
 
 도구 없이 확인하거나 실기기에서 확인할 때 쓴다.
 
-1. `cd server && npm start` (AI 미설정 상태 그대로) → `cd mobile && EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001 npx expo start --dev-client` → 개발 빌드 앱에서 Metro 서버를 연다. 실기기는 127.0.0.1 대신 같은 Wi-Fi의 Mac 주소와 서버 바인딩 변경이 필요하다.
+1. `cd server && npm start` (AI 미설정 상태 그대로) → `cd mobile && EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001 npx expo start --dev-client` → 개발 빌드 앱에서 Metro 서버를 엽니다. 실기기는 127.0.0.1 대신 같은 Wi-Fi의 Mac 주소와 서버 바인딩 변경이 필요합니다.
 2. 첫 화면 상단이 '서버 연결: …'이고 'AKMU CONCERT TOUR - 대구'(실제 자료 배지)가 보이는지 확인 → 공연을 누른다.
 3. 판매글 칸을 길게 눌러 붙여넣기: `AKMU 대구 11월 21일 오후 5시 VIP 1매, 티켓 금액만 25만원입니다. 팬클럽 선예매로 샀고 예매자는 저지만 구매자 혼자 가면 됩니다.` → 글자 수 81 표시.
 4. '정보 추출하기' → '오류 코드: AI_NOT_CONFIGURED', '다시 시도' 버튼 **없음**, 화면 이동 없음. 결과가 자동으로 나오거나 직접 입력으로 자동 전환되면 실패.
@@ -115,7 +115,7 @@ sh scripts/ios-ui-flow.sh        # Sol 서버·Metro가 없으면 띄우고, 테
 
 ## D2 즉시 Release 갱신 · 사용자 지시
 
-화면/기능 변경 묶음 후 `npm run release:d2`를 실행한다. D2 UUID를 확인하고 타입·lint·테스트 성공 시 Release 빌드→설치→실행→첫화면 캡처. 결과는 evidence/releases/<시각>/ 와 evidence/latest-release.json. 현재는 단독 실행 시연모드이며 실제 AI를 주장하지 않는다. OTA/상주감시가 아니라 매 작업 후 로컬 재빌드다. 앱 종료/교체는 D2의 dev.aid.ticketradar에만 적용한다.
+화면/기능 변경 묶음 후 `npm run release:d2`를 실행합니다. D2 UUID를 확인하고 타입·lint·테스트 성공 시 Release 빌드→설치→실행→첫화면 캡처. 결과는 evidence/releases/<시각>/ 와 evidence/latest-release.json. 현재는 단독 실행 시연모드이며 실제 AI를 주장하지 않습니다. OTA/상주감시가 아니라 매 작업 후 로컬 재빌드다. 앱 종료/교체는 D2의 dev.aid.ticketradar에만 적용합니다.
 
 ## 브랜드 Splash·모션 (APP-012, 2026-11-03)
 

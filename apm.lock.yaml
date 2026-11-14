@@ -1,5 +1,5 @@
 lockfile_version: '1'
-apm_version: 0.35.0
+apm_version: 0.34.0
 dependencies:
 - repo_url: anthropics/skills
   name: frontend-design
@@ -113,7 +113,7 @@ dependencies:
 - repo_url: expo/skills
   name: expo-router
   host: github.com
-  resolved_commit: a9e5bd3fa00b4e61f632e43f85da73aee1942582
+  resolved_commit: 7582922d039d5a96dc574757d399d22d56370f2b
   resolved_ref: main
   version: unknown
   virtual_path: plugins/expo/skills/expo-router
@@ -138,7 +138,7 @@ dependencies:
     .agents/skills/expo-router/references/tabs.md: sha256:c49081529a200bfc62c95d41229e5dd7368f2e35cd5775ccaaab3289ed1fd7eb
     .agents/skills/expo-router/references/toolbar-and-headers.md: sha256:14d9a71dd949bd2b28a5bd531f6b9c1b4f3fa847a86db8c5218fee67b5295769
     .agents/skills/expo-router/references/zoom-transitions.md: sha256:cacc1665e9f3044762765d2cd55fd1ead9627f06478f12dfa2280c6f9ae88ede
-  content_hash: sha256:522fb4c26ace63fa30696e4b5e5d9737d2e4b357f07d2ef26942ca5e4736612c
+  content_hash: sha256:a3e7d40f7de7436cf638e5870b730139bdb5d98a200d0685772fd57d0cdb2ace
 - repo_url: expo/skills
   name: expo-ui
   host: github.com
@@ -181,21 +181,6 @@ dependencies:
   deployed_file_hashes:
     .agents/skills/javascript-typescript-jest/SKILL.md: sha256:cb9a552dfe63cae4f310b27067ba28351b59ad17e83a9e1c5ff23c542ce6fdd8
   content_hash: sha256:0073d19ab0275eb6a8200aced6789a53744667bd717b5d1f44ce708a1740e5d4
-- repo_url: vercel-labs/agent-skills
-  name: web-design-guidelines
-  host: github.com
-  resolved_commit: 1a2c79d4e6c4a2283dc2c614b6538cbe1ed5ca62
-  resolved_ref: main
-  version: unknown
-  virtual_path: skills/web-design-guidelines
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .agents/skills/web-design-guidelines
-  - .agents/skills/web-design-guidelines/SKILL.md
-  deployed_file_hashes:
-    .agents/skills/web-design-guidelines/SKILL.md: sha256:f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f
-  content_hash: sha256:a6a44d5498f7e8f68289902f3dedfc6f38ae0cee1e96527c80724cf27f727c2a
 - repo_url: vercel-labs/agent-skills
   name: vercel-react-best-practices
   host: github.com
@@ -361,6 +346,21 @@ dependencies:
     .agents/skills/react-best-practices/rules/server-parallel-nested-fetching.md: sha256:ad5d9656984d4a959997a2367bf59cc6632297b4634a1dd13a087939d83f30b3
     .agents/skills/react-best-practices/rules/server-serialization.md: sha256:f4c7d68b29c82381baad059c4a7f09e868e71ec9c3115a26ad3ae7d24c0dfe1f
   content_hash: sha256:74f142d28d360d78e8bac4f239a84c87f0ced9015729bc72b5458d82ff45b015
+- repo_url: vercel-labs/agent-skills
+  name: web-design-guidelines
+  host: github.com
+  resolved_commit: 1a2c79d4e6c4a2283dc2c614b6538cbe1ed5ca62
+  resolved_ref: main
+  version: unknown
+  virtual_path: skills/web-design-guidelines
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .agents/skills/web-design-guidelines
+  - .agents/skills/web-design-guidelines/SKILL.md
+  deployed_file_hashes:
+    .agents/skills/web-design-guidelines/SKILL.md: sha256:f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f
+  content_hash: sha256:a6a44d5498f7e8f68289902f3dedfc6f38ae0cee1e96527c80724cf27f727c2a
 deployments:
 - kind: project-relative
   target: codex

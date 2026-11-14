@@ -1,0 +1,23 @@
+{
+  "name": "티켓레이더",
+  "short_name": "티켓레이더",
+  "description": "가상 티켓 예매와 원구매가 양도, 판매글 확인을 한 곳에서.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "ko",
+  "categories": ["entertainment", "lifestyle"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "내 티켓", "url": "/#/tickets", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "판매글 확인", "url": "/#/check", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,5 +1,5 @@
 lockfile_version: '1'
-apm_version: 0.35.0
+apm_version: 0.34.0
 dependencies:
 - repo_url: addyosmani/agent-skills
   name: ci-cd-and-automation
@@ -261,7 +261,7 @@ dependencies:
 - repo_url: expo/skills
   name: expo-overview
   host: github.com
-  resolved_commit: a9e5bd3fa00b4e61f632e43f85da73aee1942582
+  resolved_commit: 7582922d039d5a96dc574757d399d22d56370f2b
   resolved_ref: main
   version: unknown
   virtual_path: plugins/expo/skills/expo-overview
@@ -276,7 +276,7 @@ dependencies:
     .agents/skills/expo-overview/SKILL.md: sha256:c63fb61657430f4d4e266ea9f037b4e63ebd78686b57b6a20f98a4047b144c55
     .agents/skills/expo-overview/agents/openai.yaml: sha256:a488fa6e5659f702b5e27d4bcc1ab601cc64c0fc001404d64fcdef1627f81494
     .agents/skills/expo-overview/references/launch-without-dev-menu.md: sha256:d0cdc82285d136f9264fb28d8ce21690d2d12ba83591104109c9cdcb9989af26
-  content_hash: sha256:99d80d4bdbdeb23fedd5aee83bb6cce9f89f5dfc11fbef220caa91a2f0210aaa
+  content_hash: sha256:66df2388908ad3e2813cd73e73d842ffce1c6cfdb4714b5aedd1027cd18a1a5f
 - repo_url: expo/skills
   name: expo-router
   host: github.com

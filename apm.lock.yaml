@@ -1,5 +1,5 @@
 lockfile_version: '1'
-apm_version: 0.35.0
+apm_version: 0.34.0
 dependencies:
 - repo_url: addyosmani/agent-skills
   name: ci-cd-and-automation
@@ -230,7 +230,7 @@ dependencies:
 - repo_url: expo/skills
   name: expo-native-ui
   host: github.com
-  resolved_commit: a9e5bd3fa00b4e61f632e43f85da73aee1942582
+  resolved_commit: 7582922d039d5a96dc574757d399d22d56370f2b
   resolved_ref: main
   version: unknown
   virtual_path: plugins/expo/skills/expo-native-ui
@@ -257,7 +257,7 @@ dependencies:
     .agents/skills/expo-native-ui/references/storage.md: sha256:265e8bc21adcd698062f18fa442e0e07e99e67868576f18aac2112e5381ffbf1
     .agents/skills/expo-native-ui/references/visual-effects.md: sha256:dcdcaa5e0bf5c20341455e39d91312ca5f3034391908f77eb2e577044283adcc
     .agents/skills/expo-native-ui/references/webgpu-three.md: sha256:3a247a7740e4bab4aea5dec8b81c7782a5918bb221838a05f6a94c669f145679
-  content_hash: sha256:9b4fd02a7244bbe8cc05a9a3572b06f0cd222f3ec24d987c4ac5a85e531c26fe
+  content_hash: sha256:8dd3aae24d9dfd74a0551216115ab9bed359b84442c635f15f1fe6061883b10e
 - repo_url: expo/skills
   name: expo-overview
   host: github.com

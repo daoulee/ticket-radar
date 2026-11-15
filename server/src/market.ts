@@ -1,5 +1,5 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { IncomingMessage } from 'node:http';
 import { catalog } from './catalog.ts';
@@ -8,12 +8,19 @@ import { normalizeEmail } from './email-identity.ts';
 import { isValidNewPassword, PASSWORD_RULE_MESSAGE } from '../../shared/password-policy.ts';
 import { MarketCore, MarketError, seedState, type Category, type MarketState, type Show } from './market-core.ts';
 import type { KopisDetail } from './kopis-cards.ts';
+import { acquireMarketFileLock } from './market-file-lock.ts';
 
 // 중개 구매 플랫폼(시연) 서버 계층: 계정(비밀번호는 scrypt 해시로만 저장)·세션·파일 저장·HTTP 라우트.
 // 규칙은 market-core.ts 에 있다. 결제는 시연이며 실제 돈이 오가지 않는다.
 
 interface Credential { salt: string; hash: string; email?: string }
-interface Persisted { version: 1; state: MarketState; credentials: Record<string, Credential> }
+interface Persisted { version: 1; state: MarketState; credentials: Record<string, Credential>; sessions?: Record<string, { userId: string; expiresAt: number }> }
+
+/** 외부 저장소는 동기식 원자적 읽기·쓰기 계약을 제공해야 합니다. */
+export interface MarketPersistence {
+  load(): string | null;
+  save(serialized: string): void;
+}
 
 /** 서버 카탈로그(공식 공지 스냅샷)의 AKMU 공연을 플랫폼 공연으로 바꾼다. 공식 규정은 원문 그대로. */
 export function catalogShow(): Show | null {
@@ -40,17 +47,41 @@ export class MarketService {
   private readonly credentials: Record<string, Credential>;
   private readonly sessions = new Map<string, { userId: string; expiresAt: number }>();
   private readonly file: string | null;
+  private readonly persistence: MarketPersistence | null;
   private readonly now: () => number;
 
-  constructor(file: string | null = null, now: () => number = Date.now) {
-    this.file = file; this.now = now;
+  constructor(file: string | null = null, now: () => number = Date.now, persistence: MarketPersistence | null = null) {
+    if (file && persistence) throw new Error('파일과 외부 저장소를 동시에 사용할 수 없습니다.');
+    this.file = file; this.now = now; this.persistence = persistence;
     let saved: Persisted | null = null;
-    if (file) {
+    if (persistence) {
+      try {
+        const raw = persistence.load();
+        if (raw !== null) {
+          const parsed: unknown = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid persisted data');
+          const value = parsed as Record<string, unknown>;
+          const state = value.state;
+          if (value.version !== 1 || !state || typeof state !== 'object' || Array.isArray(state) || !value.credentials || typeof value.credentials !== 'object' || Array.isArray(value.credentials)) throw new Error('Invalid persisted data');
+          for (const field of ['shows', 'listings', 'users', 'notifications', 'orders']) if (!Array.isArray((state as Record<string, unknown>)[field])) throw new Error('Invalid persisted data');
+          if (value.sessions !== undefined) {
+            if (!value.sessions || typeof value.sessions !== 'object' || Array.isArray(value.sessions)) throw new Error('Invalid sessions');
+            for (const [digest, entry] of Object.entries(value.sessions)) {
+              if (!/^[a-f0-9]{64}$/.test(digest) || !entry || typeof entry !== 'object' || typeof (entry as { userId?: unknown }).userId !== 'string' || !Number.isSafeInteger((entry as { expiresAt?: unknown }).expiresAt)) throw new Error('Invalid sessions');
+            }
+          }
+          saved = value as unknown as Persisted;
+        }
+      } catch { throw new ApiError('MARKET_STORE_ERROR', '거래 저장소를 읽지 못했어요.', 500); }
+    } else if (file) {
       try { saved = JSON.parse(readFileSync(file, 'utf8')) as Persisted; }
       catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw new ApiError('MARKET_STORE_ERROR', '거래 저장소를 읽지 못했어요.', 500); }
     }
     this.credentials = saved?.credentials ?? {};
     this.core = new MarketCore(saved?.state ?? seedState(catalogShow(), new Date(now()).toISOString()), { now, onChange: () => this.persist() });
+    if (persistence && saved?.sessions) for (const [digest, session] of Object.entries(saved.sessions)) {
+      if (session.expiresAt > this.now() && this.core.state.users.some(user => user.id === session.userId)) this.sessions.set(digest, session);
+    }
   }
 
   /** User-requested, idempotent demo. No real session, seat number or inventory is asserted. */
@@ -79,13 +110,20 @@ export class MarketService {
   }
 
   private persist() {
-    if (!this.file) return;
+    if (!this.file && !this.persistence) return;
     try {
+      const data: Persisted = { version: 1, state: this.core.state, credentials: this.credentials, ...(this.persistence ? { sessions: Object.fromEntries(this.sessions) } : {}) };
+      const serialized = JSON.stringify(data);
+      if (this.persistence) { this.persistence.save(serialized); return; }
+      if (!this.file) throw new Error('저장소가 없습니다.');
       mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });
-      const tmp = `${this.file}.${process.pid}.tmp`;
-      const data: Persisted = { version: 1, state: this.core.state, credentials: this.credentials };
-      (this.writeFile ?? writeFileSync)(tmp, JSON.stringify(data), { mode: 0o600 });
-      renameSync(tmp, this.file);
+      const release = acquireMarketFileLock(this.file);
+      try {
+        if (existsSync(`${this.file}.migrated`)) throw new Error('Market source has been migrated');
+        const tmp = `${this.file}.${process.pid}.tmp`;
+        (this.writeFile ?? writeFileSync)(tmp, serialized, { mode: 0o600 });
+        renameSync(tmp, this.file);
+      } finally { release(); }
     } catch {
       throw new ApiError('MARKET_STORE_ERROR', '저장하지 못했어요. 잠시 후 다시 시도해 주세요.', 503, true);
     }
@@ -99,25 +137,32 @@ export class MarketService {
    * 모든 변경은 동기 실행이라 다른 요청과 섞이지 않는다. MarketError 는 기존 오류 형식으로 바꾼다.
    */
   tx<T>(fn: () => T): T {
-    const snap = JSON.stringify({ s: this.core.state, c: this.credentials });
+    const snap = JSON.stringify({ s: this.core.state, c: this.credentials, sessions: [...this.sessions] });
     try {
       return wrap(fn);
     } catch (e) {
       if (e instanceof ApiError && e.code === 'MARKET_STORE_ERROR') {
-        const r = JSON.parse(snap) as { s: MarketState; c: Record<string, Credential> };
+        const r = JSON.parse(snap) as { s: MarketState; c: Record<string, Credential>; sessions: [string, { userId: string; expiresAt: number }][] };
         Object.assign(this.core.state, r.s);
         for (const k of Object.keys(this.credentials)) delete this.credentials[k];
         Object.assign(this.credentials, r.c);
+        this.sessions.clear(); for (const [key, session] of r.sessions) this.sessions.set(key, session);
       }
       throw e;
     }
   }
 
-  private issue(userId: string) {
+  private sessionKey(token: string) { return this.persistence ? createHash('sha256').update(token).digest('hex') : token; }
+
+  private issue(userId: string, saveSession = true) {
+    const previous = new Map(this.sessions);
     for (const [t, s] of this.sessions) if (s.expiresAt <= this.now()) this.sessions.delete(t);
     const token = randomBytes(32).toString('base64url');
     const expiresAt = this.now() + 7 * 24 * 3600_000;
-    this.sessions.set(token, { userId, expiresAt });
+    this.sessions.set(this.sessionKey(token), { userId, expiresAt });
+    if (this.persistence && saveSession) {
+      try { this.persist(); } catch (error) { this.sessions.clear(); for (const [key, value] of previous) this.sessions.set(key, value); throw error; }
+    }
     const u = this.core.state.users.find((x) => x.id === userId)!;
     return { token, expiresAt: new Date(expiresAt).toISOString(), user: { id: u.id, name: u.name, alertsOn: u.alertsOn } };
   }
@@ -162,8 +207,9 @@ export class MarketService {
     const salt = randomBytes(16).toString('hex');
     this.credentials[id] = { salt, hash: scryptSync(password, salt, 32).toString('hex'), ...(email ? { email } : {}) };
     this.core.state.users.push({ id, name, alertsOn: true, favorites: [] });
+    const session = this.issue(id, false);
     this.persist();
-    return this.issue(id);
+    return session;
   }
 
   login(raw: unknown) {
@@ -185,13 +231,20 @@ export class MarketService {
   tokenOf(req: IncomingMessage) { const h = req.headers.authorization ?? ''; return h.startsWith('Bearer ') ? h.slice(7).trim() : ''; }
   userOf(req: IncomingMessage, required = true): string | undefined {
     const token = this.tokenOf(req);
-    const s = token ? this.sessions.get(token) : undefined;
+    const key = token ? this.sessionKey(token) : '';
+    const s = key ? this.sessions.get(key) : undefined;
     if (s && s.expiresAt > this.now() && this.core.state.users.some((u) => u.id === s.userId)) return s.userId;
-    if (token) this.sessions.delete(token);
+    if (key) this.sessions.delete(key);
     if (required) throw new ApiError('UNAUTHORIZED', '로그인이 필요해요.', 401);
     return undefined;
   }
-  logout(req: IncomingMessage) { this.sessions.delete(this.tokenOf(req)); }
+  logout(req: IncomingMessage) {
+    const token = this.tokenOf(req); if (!token) return;
+    const key = this.sessionKey(token); const previous = this.sessions.get(key);
+    if (!previous) return;
+    this.sessions.delete(key);
+    if (this.persistence) try { this.persist(); } catch (error) { this.sessions.set(key, previous); throw error; }
+  }
   me(userId: string) {
     const u = this.core.state.users.find((x) => x.id === userId)!;
     return { id: u.id, name: u.name, alertsOn: u.alertsOn, unread: this.core.notifications(userId).filter((n) => !n.read).length };
@@ -244,7 +297,7 @@ export async function handleMarket(
     const b = (await readJson()) as Record<string, unknown>;
     return ok(market.tx(() => market.core.createListing(userId, {
       showId: String(b?.showId ?? ''), sessionId: String(b?.sessionId ?? ''), seatGrade: String(b?.seatGrade ?? ''),
-      quantity: toInt(b?.quantity), pricePerTicket: toInt(b?.pricePerTicket), delivery: b?.delivery as never, bookingType: b?.bookingType as never,
+      quantity: toInt(b?.quantity), pricePerTicket: toInt(b?.pricePerTicket), originalPricePerTicket: toInt(b?.originalPricePerTicket), delivery: b?.delivery as never, bookingType: b?.bookingType as never,
     })), 201);
   }
   if (m === 'GET' && p === '/me/favorites') return ok(market.tx(() => market.core.favorites(market.userOf(req)!)));

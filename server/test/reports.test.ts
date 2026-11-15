@@ -8,7 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { createApi } from '../src/http.ts';
 import { CheckService } from '../src/service.ts';
 import { ApiError } from '../src/errors.ts';
-import { accountsFromEnv, maskContacts, parseReportRequest, ReportService } from '../src/reports.ts';
+import { accountsFromEnv, cloudOrganizerAccounts, maskContacts, parseReportRequest, ReportService } from '../src/reports.ts';
 import { entry, listing } from './helpers.ts';
 
 const hasCode = (code: string) => (e: unknown) => e instanceof ApiError && e.code === code;
@@ -20,6 +20,15 @@ const body = (over: Record<string, unknown> = {}) => ({
   listingText: `${listing} 연락 010-1234-5678, 계좌 110-123-456789`, listingUrl: 'https://example.com/post/1', listingPrice: 250000,
   description: '카톡 아이디: seller99 로 연락하래요', findings: [{ title: '수령 조건 확인 필요', status: 'needs_check', listingQuote: 'QR 캡처 전달', officialExcerpt: '본인 확인', sourceUrl: 'https://example.com/notice' }],
   ...over,
+});
+
+test('cloud report accounts remain disabled by default and reject weak or ambiguous configuration', () => {
+  assert.deepEqual(cloudOrganizerAccounts(undefined, ACCOUNTS), []);
+  assert.throws(() => cloudOrganizerAccounts('1', ACCOUNTS), hasCode('INVALID_ORGANIZER_CONFIG'));
+  assert.throws(() => cloudOrganizerAccounts('1', `akmu-demo:${'a'.repeat(43)}:${EV}`), hasCode('INVALID_ORGANIZER_CONFIG'));
+  const good = `akmu-demo:AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-01234:${EV}`;
+  assert.equal(cloudOrganizerAccounts('1', good).length, 1);
+  assert.throws(() => cloudOrganizerAccounts('1', `${good};${good}`), hasCode('INVALID_ORGANIZER_CONFIG'));
 });
 
 test('report request: consent, uuid, known event, url scheme and masking are enforced', () => {
@@ -49,6 +58,34 @@ test('reports: duplicate clientRequestId returns the first report; file store is
   assert.ok(token);
 });
 
+test('external report store survives restart and keeps organizer event boundaries', () => {
+  let saved: string | null = null;
+  const store = { load: () => saved, save: (value: string) => { saved = value; } };
+  const accounts = accountsFromEnv(ACCOUNTS);
+  const first = new ReportService(accounts, null, Date.now, store);
+  const { report } = first.create(parseReportRequest(body(), known));
+  first.update(accounts[0], report.id, { status: 'reviewing' });
+  assert.ok(!String(saved).includes('010-1234-5678'));
+  const restored = new ReportService(accounts, null, Date.now, store);
+  assert.equal(restored.get(accounts[0], report.id).status, 'reviewing');
+  assert.equal(restored.create(parseReportRequest(body(), known)).duplicate, true);
+  assert.throws(() => restored.get(accounts[1], report.id), hasCode('REPORT_NOT_FOUND'));
+  assert.throws(() => restored.list(accounts[1], EV), hasCode('FORBIDDEN_EVENT'));
+});
+
+test('external report storage failures roll back changes and corrupted data fails closed', () => {
+  let saved: string | null = null; let fail = false;
+  const store = { load: () => saved, save: (value: string) => { if (fail) throw new Error('disk unavailable'); saved = value; } };
+  const accounts = accountsFromEnv(ACCOUNTS), service = new ReportService(accounts, null, Date.now, store);
+  const { report } = service.create(parseReportRequest(body(), known));
+  fail = true;
+  assert.throws(() => service.update(accounts[0], report.id, { status: 'resolved' }), hasCode('REPORT_STORE_ERROR'));
+  assert.equal(service.get(accounts[0], report.id).status, 'received');
+  assert.throws(() => service.create(parseReportRequest(body({ clientRequestId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee' }), known)), hasCode('REPORT_STORE_ERROR'));
+  assert.equal(service.list(accounts[0], EV).length, 1);
+  assert.throws(() => new ReportService(accounts, null, Date.now, { load: () => '[{}]', save: () => {} }), hasCode('REPORT_STORE_ERROR'));
+});
+
 test('organizer: login, event scoping, hidden other-event reports, audit history, export without memo', () => {
   const svc = new ReportService(accountsFromEnv(ACCOUNTS));
   const { report } = svc.create(parseReportRequest(body(), known));
@@ -64,6 +101,8 @@ test('organizer: login, event scoping, hidden other-event reports, audit history
   assert.equal(r.history[1].from, 'received'); assert.equal(r.history[1].to, 'reviewing'); assert.equal(r.history[1].actor, 'akmu-demo');
   assert.ok(!r.memo.includes('010-9999-8888'));
   assert.throws(() => svc.update(akmu, report.id, { status: 'deleted' }), hasCode('BAD_REQUEST'));
+  assert.throws(() => svc.update(akmu, report.id, { status: 'resolved', memo: 'x'.repeat(1001) }), hasCode('BAD_REQUEST'));
+  assert.equal(svc.get(akmu, report.id).status, 'reviewing');
   assert.throws(() => svc.update(akmu, report.id, { eventId: 'x' }), hasCode('BAD_REQUEST'));
   const text = svc.exportText(akmu, report.id);
   assert.match(text, /자동 제출하지 않았습니다/); assert.ok(!text.includes('예매처 확인 요청'));
@@ -79,6 +118,36 @@ test('organizer sessions expire after two hours', () => {
   assert.equal(svc.authorize(req).id, 'akmu-demo');
   now += 2 * 3600_000 + 1;
   assert.throws(() => svc.authorize(req), hasCode('UNAUTHORIZED'));
+});
+
+test('external organizer sessions survive restart, do not store bearer tokens and revoke logout', () => {
+  let saved: string | null = null; let now = 1_000;
+  const store = { load: () => saved, save: (value: string) => { saved = value; } };
+  const accounts = accountsFromEnv(ACCOUNTS);
+  const first = new ReportService(accounts, null, () => now, null, store);
+  const { token } = first.login({ accountId: 'akmu-demo', code: 'test-code-aaaa' });
+  assert.ok(!String(saved).includes(token));
+  const req = { headers: { authorization: `Bearer ${token}` } } as any;
+  const restored = new ReportService(accounts, null, () => now, null, store);
+  assert.equal(restored.authorize(req).id, 'akmu-demo');
+  restored.logout(token);
+  assert.throws(() => new ReportService(accounts, null, () => now, null, store).authorize(req), hasCode('UNAUTHORIZED'));
+  const next = restored.login({ accountId: 'akmu-demo', code: 'test-code-aaaa' });
+  now += 2 * 3600_000 + 1;
+  assert.throws(() => new ReportService(accounts, null, () => now, null, store).authorize({ headers: { authorization: `Bearer ${next.token}` } } as any), hasCode('UNAUTHORIZED'));
+});
+
+test('organizer session persistence failures do not issue or revoke sessions', () => {
+  let saved: string | null = null; let fail = false;
+  const store = { load: () => saved, save: (value: string) => { if (fail) throw new Error('unavailable'); saved = value; } };
+  const service = new ReportService(accountsFromEnv(ACCOUNTS), null, Date.now, null, store);
+  const { token } = service.login({ accountId: 'akmu-demo', code: 'test-code-aaaa' });
+  const req = { headers: { authorization: `Bearer ${token}` } } as any;
+  fail = true;
+  assert.throws(() => service.login({ accountId: 'akmu-demo', code: 'test-code-aaaa' }), hasCode('ORGANIZER_SESSION_STORE_ERROR'));
+  assert.throws(() => service.logout(token), hasCode('ORGANIZER_SESSION_STORE_ERROR'));
+  assert.equal(service.authorize(req).id, 'akmu-demo');
+  assert.throws(() => new ReportService(accountsFromEnv(ACCOUNTS), null, Date.now, null, { load: () => '{}', save: () => {} }), hasCode('ORGANIZER_SESSION_STORE_ERROR'));
 });
 
 test('HTTP: fan report → organizer inbox round trip with permissions and logout', async () => {
@@ -106,4 +175,16 @@ test('HTTP: fan report → organizer inbox round trip with permissions and logou
     assert.equal((await json('POST', '/organizer/logout', {}, login.token)).status, 200);
     assert.equal((await json('GET', `/organizer/reports/${reportId}`, undefined, login.token)).status, 401);
   } finally { await new Promise<void>((r, j) => server.close(e => e ? j(e) : r())); }
+});
+
+test('organizer login locks the identifier after repeated invalid codes', async () => {
+  const server = createApi(new CheckService(), undefined, undefined, new ReportService(accountsFromEnv(ACCOUNTS)));
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const login = (code: string) => fetch(`${base}/organizer/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountId: 'akmu-demo', code }) });
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) assert.equal((await login('wrong-code')).status, 401);
+    const locked = await login('test-code-aaaa');
+    assert.equal(locked.status, 429); assert.equal((await locked.json() as { code: string }).code, 'LOGIN_LOCKED');
+  } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });

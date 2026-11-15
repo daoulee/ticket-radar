@@ -39,6 +39,7 @@ export type ListingWithSafety = Listing & { safety: Safety };
 export type ShowDetail = { show: Show; summary: ShowSummary; listings: ListingWithSafety[] };
 export type ListingDetail = { listing: Listing; show: Show; safety: Safety; session: Show['sessions'][number] | null };
 export type OrderDetail = { order: Order; listing: Listing; show: Show; session: Show['sessions'][number] | null; role: 'buyer' | 'seller' };
+export type TestPaymentOrder = { orderId: string; providerOrderId: string; amount: number; mode: 'test' };
 export type Session = { token: string; expiresAt: string; user: { id: string; name: string; alertsOn: boolean } };
 export type Me = { id: string; name: string; alertsOn: boolean; unread: number };
 export type Performance = { id: string; title: string; venue: string | null; startsOn: string; endsOn: string; status: string | null; source: 'KOPIS'; fetchedAt: string; genre: string | null; posterUrl: string | null };
@@ -69,6 +70,9 @@ export interface MarketApi {
   orders(token: string): Promise<OrderDetail[]>;
   order(token: string, id: string): Promise<OrderDetail>;
   createOrder(token: string, listingId: string): Promise<Order>;
+  prepareTestPayment?(token: string, listingId: string): Promise<TestPaymentOrder>;
+  issueTestPaymentHandoff?(token: string, orderId: string): Promise<{ code: string; expiresInSeconds: number }>;
+  cancelTestPayment?(token: string, orderId: string): Promise<void>;
   markSent(token: string, id: string): Promise<Order>;
   confirm(token: string, id: string): Promise<Order>;
   cancel(token: string, id: string): Promise<Order>;
@@ -176,6 +180,17 @@ export function createHttpMarket(baseUrl: string, fetchImpl: typeof fetch = fetc
     orders: (token) => call('GET', '/me/orders', undefined, token),
     order: (token, id) => call('GET', `/orders/${enc(id)}`, undefined, token),
     createOrder: (token, listingId) => call('POST', '/orders', { listingId }, token),
+    prepareTestPayment: async (token, listingId) => {
+      const value = await call<Partial<TestPaymentOrder>>('POST', '/test-payments/prepare', { listingId }, token);
+      if (value.mode !== 'test' || typeof value.orderId !== 'string' || !/^ord-[A-Za-z0-9-]{1,96}$/.test(value.orderId) || typeof value.providerOrderId !== 'string' || !/^trtest_[a-f0-9]{32}$/.test(value.providerOrderId) || !Number.isSafeInteger(value.amount) || (value.amount ?? 0) <= 0) throw new ApiError({ code: 'INVALID_RESPONSE', message: '테스트 주문을 확인하지 못했어요.', retryable: true });
+      return value as TestPaymentOrder;
+    },
+    issueTestPaymentHandoff: async (token, orderId) => {
+      const value = await call<{ code?: unknown; expiresInSeconds?: unknown }>('POST', '/test-payments/handoff', { orderId }, token);
+      if (typeof value.code !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.code) || !Number.isSafeInteger(value.expiresInSeconds) || (value.expiresInSeconds as number) < 1 || (value.expiresInSeconds as number) > 120) throw new ApiError({ code: 'INVALID_RESPONSE', message: '결제 연결을 확인하지 못했어요.', retryable: true });
+      return { code: value.code, expiresInSeconds: value.expiresInSeconds as number };
+    },
+    cancelTestPayment: async (token, orderId) => { await call('POST', '/test-payments/cancel', { orderId }, token); },
     markSent: (token, id) => call('POST', `/orders/${enc(id)}/sent`, {}, token),
     confirm: (token, id) => call('POST', `/orders/${enc(id)}/confirm`, {}, token),
     cancel: (token, id) => call('POST', `/orders/${enc(id)}/cancel`, {}, token),
@@ -289,7 +304,7 @@ export function createDemoMarket(opts: { latencyMs?: number } = {}): MarketApi {
         if (!show || !face) return null;
         core.createListing('demo-seller', {
           showId: show.id, sessionId: show.sessions[0].id, seatGrade: face.seatGrade, quantity: 1,
-          pricePerTicket: Math.max(1000, Math.round((face.price * 0.95) / 1000) * 1000), delivery: 'official_transfer', bookingType: 'general',
+          pricePerTicket: Math.max(1000, Math.round((face.price * 0.95) / 1000) * 1000), originalPricePerTicket: face.price, delivery: 'official_transfer', bookingType: 'general',
         });
         return show.title;
       }),

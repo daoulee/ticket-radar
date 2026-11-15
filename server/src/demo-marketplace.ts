@@ -39,11 +39,13 @@ export class DemoMarketplace {
   /** 판매자의 보유·구매가·공식 양도 가능 여부는 검증하지 않는 가상 등록. 메모리에서만 유지한다. */
   registerResale(raw: unknown): DemoResaleListing {
     const parsed = DemoResaleRegistrationSchema.safeParse(raw);
-    if (!parsed.success) throw new ApiError('DEMO_INVALID_LISTING', '시연 양도 정보와 동일한 구매가·양도가를 확인해 주세요.');
+    if (!parsed.success) throw new ApiError('DEMO_INVALID_LISTING', '시연 양도가가 구매가 이하인지 확인해 주세요.');
     const req = parsed.data;
     const event = this.catalog.find(item => item.id === req.eventId);
     if (!event || !event.showtimes.some(showtime => showtime.id === req.showtimeId)) throw new ApiError('DEMO_EVENT_MISMATCH', '시연 공연과 회차가 일치하지 않습니다.', 404);
-    if (!event.inventory.some(item => item.showtimeId === req.showtimeId && item.seatGrade === req.seatGrade)) throw new ApiError('DEMO_GRADE_MISMATCH', '시연 회차의 좌석 등급이 아닙니다.', 404);
+    const inventory = event.inventory.find(item => item.showtimeId === req.showtimeId && item.seatGrade === req.seatGrade);
+    if (!inventory) throw new ApiError('DEMO_GRADE_MISMATCH', '시연 회차의 좌석 등급이 아닙니다.', 404);
+    if (req.listingUnitPrice > inventory.unitPrice) throw new ApiError('DEMO_PRICE_ABOVE_FACE', '시연 양도가가 해당 좌석의 시연 기준가를 초과합니다.', 409);
     const listing = DemoResaleListingSchema.parse({ ...req, id: `demo-resale-${randomUUID()}`, status: 'available', ownershipVerified: false, originalPriceVerified: false, transferEligibilityVerified: false });
     this.resale.push(listing);
     return structuredClone(listing);
@@ -65,7 +67,7 @@ export class DemoMarketplace {
       const listing = this.resale.find(item => item.id === req.listingId);
       if (!listing || listing.status !== 'available') throw new ApiError('DEMO_LISTING_UNAVAILABLE', '선택한 시연 매물을 이용할 수 없습니다.', 404);
       if (listing.eventId !== req.eventId || listing.showtimeId !== req.showtimeId || listing.seatGrade !== req.seatGrade) throw new ApiError('DEMO_LISTING_MISMATCH', '시연 매물의 공연·회차·좌석이 일치하지 않습니다.', 409);
-      if (listing.originalUnitPrice !== listing.listingUnitPrice) throw new ApiError('DEMO_PRICE_MISMATCH', '시연 양도가격은 시연 구매가와 같아야 합니다.', 409);
+      if (listing.listingUnitPrice > listing.originalUnitPrice || listing.listingUnitPrice > inventory.unitPrice) throw new ApiError('DEMO_PRICE_MISMATCH', '시연 양도가가 구매가 또는 시연 기준가를 초과합니다.', 409);
       if (req.quantity > listing.simulatedQuantityAvailable) throw new ApiError('DEMO_QUANTITY_UNAVAILABLE', '시연 잔여 수량을 초과했습니다.', 409);
       unitPrice = listing.listingUnitPrice; listingId = listing.id;
     }

@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { createApi } from '../src/http.ts';
 import { CheckService } from '../src/service.ts';
 import { ApiError } from '../src/errors.ts';
+import type { KopisDetail } from '../src/kopis-cards.ts';
 import { CheckResponseSchema, EventListSchema, OfficialContextSchema, ApiErrorBodySchema } from '../../shared/index.ts';
 import { entry, listing, confirmed, fixtureProvider } from './helpers.ts';
 
@@ -30,6 +31,23 @@ test('HTTP: actual performance search is separate from reviewed event catalog', 
     assert.equal(response.status, 200); assert.equal(received, '공연');
     assert.equal((await response.json() as { source: string }[])[0].source, 'KOPIS');
     assert.equal((await fetch(`${base}/events/PF123/official-context`)).status, 404);
+  } finally { await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve())); }
+});
+
+test('HTTP: card and detail endpoints use the configured performance providers', async () => {
+  let options: { category?: 'concert' | 'musical'; page?: number } | undefined;
+  let detailId = '';
+  const server = createApi(new CheckService(), undefined, undefined, undefined, undefined, undefined, undefined,
+    async id => { detailId = id; return { id, title: '가상 공연' } as KopisDetail; },
+    undefined, undefined, async value => { options = value; return []; });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const cards = await fetch(`${base}/performance-cards?category=musical&page=2`);
+    assert.equal(cards.status, 200); assert.deepEqual(options, { category: 'musical', page: 2 });
+    const detail = await fetch(`${base}/performance-cards/PF123`);
+    assert.equal(detail.status, 200); assert.equal(detailId, 'PF123');
+    assert.equal((await detail.json() as { title: string }).title, '가상 공연');
   } finally { await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve())); }
 });
 

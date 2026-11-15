@@ -50,6 +50,7 @@ export default function RootLayout() {
           {(
             [
               ['about', 'slide_from_right'],
+              ['demo-booking', 'slide_from_right'],
               ['show/[id]', 'slide_from_right'],
               ['performance/[id]', 'slide_from_right'],
               ['performance-listings/[id]', 'slide_from_right'],

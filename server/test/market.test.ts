@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { acquireMarketFileLock } from '../src/market-file-lock.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -49,7 +50,7 @@ test('favorites are per account; new listing count resets when the show is viewe
   const m = core();
   m.setFavorite('u1', akmu.id, true);
   assert.equal(m.favorites('u1').length, 1); assert.equal(m.favorites('u2').length, 0);
-  m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 165000, delivery: 'official_transfer', bookingType: 'general' });
+  m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 165000, originalPricePerTicket: 165000, delivery: 'official_transfer', bookingType: 'general' });
   assert.equal(m.favorites('u1')[0].newCount, 1);
   m.getShow(akmu.id, 'u1');
   assert.equal(m.favorites('u1')[0].newCount, 0);
@@ -61,9 +62,9 @@ test('favorites are per account; new listing count resets when the show is viewe
 test('below-face alerts go only to other users who favorited the show with alerts on', () => {
   const m = core();
   m.setFavorite('u1', akmu.id, true); m.setFavorite('u3', akmu.id, true); m.setFavorite('u2', akmu.id, true);
-  assert.throws(() => m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 230000, delivery: 'official_transfer', bookingType: 'general' }), hasCode('PRICE_ABOVE_FACE'));
+  assert.throws(() => m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 230000, originalPricePerTicket: 230000, delivery: 'official_transfer', bookingType: 'general' }), hasCode('PRICE_ABOVE_FACE'));
   assert.equal(m.notifications('u1').length, 0, 'above face rejected → no alert');
-  m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' });
+  m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 170000, originalPricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' });
   assert.equal(m.notifications('u1').length, 1); assert.match(m.notifications('u1')[0].text, /정가 이하/);
   assert.equal(m.notifications('u3').length, 0, 'alerts off'); assert.equal(m.notifications('u2').length, 0, 'own listing');
   m.markRead('u1'); assert.equal(m.notifications('u1')[0].read, true);
@@ -71,7 +72,7 @@ test('below-face alerts go only to other users who favorited the show with alert
 
 test('listing registration rejects an unknown price and an amount above face value', () => {
   const m = core();
-  const input = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 176000, delivery: 'official_transfer' as const, bookingType: 'general' as const };
+  const input = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 176000, originalPricePerTicket: 176001, delivery: 'official_transfer' as const, bookingType: 'general' as const };
   assert.throws(() => m.createListing('u2', { ...input, pricePerTicket: 176001 }), hasCode('PRICE_ABOVE_FACE'));
   assert.throws(() => m.createListing('u2', { ...input, seatGrade: '미확인석' }), hasCode('FACE_PRICE_UNVERIFIED'));
   assert.equal(m.createListing('u2', input).listing.pricePerTicket, 176000);
@@ -81,11 +82,11 @@ test('listing registration rejects an unknown price and an amount above face val
 
 test('demo orders: hold → sent → settled, permissions and listing state', () => {
   const m = core();
-  assert.throws(() => m.createListing('u2', { showId: akmu.id, sessionId: 'x', seatGrade: 'VIP', quantity: 1, pricePerTicket: 1, delivery: 'official_transfer', bookingType: 'general' }), hasCode('BAD_REQUEST'));
-  const { listing } = m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 2, pricePerTicket: 150000, delivery: 'official_transfer', bookingType: 'general' });
+  assert.throws(() => m.createListing('u2', { showId: akmu.id, sessionId: 'x', seatGrade: 'VIP', quantity: 1, pricePerTicket: 1, originalPricePerTicket: 1, delivery: 'official_transfer', bookingType: 'general' }), hasCode('BAD_REQUEST'));
+  const { listing } = m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, originalPricePerTicket: 150000, delivery: 'official_transfer', bookingType: 'general' });
   assert.throws(() => m.createOrder('u2', listing.id), hasCode('OWN_LISTING'));
   const o = m.createOrder('u1', listing.id);
-  assert.equal(o.amount, 300000); assert.equal(o.status, 'held'); assert.equal(o.isDemoPayment, true);
+  assert.equal(o.amount, 150000); assert.equal(o.status, 'held'); assert.equal(o.isDemoPayment, true);
   assert.throws(() => m.createOrder('u3', listing.id), hasCode('LISTING_UNAVAILABLE'));
   assert.throws(() => m.confirmReceived('u1', o.id), hasCode('BAD_STATE'));
   assert.throws(() => m.markSent('u1', o.id), hasCode('FORBIDDEN'));
@@ -95,9 +96,47 @@ test('demo orders: hold → sent → settled, permissions and listing state', ()
   assert.throws(() => m.getOrder('u3', o.id), hasCode('ORDER_NOT_FOUND'));
   const demoOrder = m.createOrder('u1', 'lst-akmu-1');
   assert.equal(demoOrder.status, 'sent', 'demo sellers auto-send');
-  const { listing: l2 } = m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, delivery: 'official_transfer', bookingType: 'general' });
+  const { listing: l2 } = m.createListing('u2', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, originalPricePerTicket: 150000, delivery: 'official_transfer', bookingType: 'general' });
   const held = m.createOrder('u3', l2.id);
   m.cancelOrder('u3', held.id); assert.equal(m.getListing(l2.id).listing.status, 'active', 'buyer may cancel while held');
+});
+
+test('test payment reserves a listing and gates delivery until verified approval', () => {
+  let now = Date.parse('2026-11-03T12:00:00Z');
+  const state = seedState(akmu, new Date(now).toISOString());
+  state.users.push({ id: 'buyer', name: '구매자', alertsOn: true, favorites: [] }, { id: 'seller', name: '판매자', alertsOn: true, favorites: [] }, { id: 'other', name: '다른사람', alertsOn: true, favorites: [] });
+  const market = new MarketCore(state, { now: () => now });
+  const listing = market.createListing('seller', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, originalPricePerTicket: 150000, delivery: 'official_transfer', bookingType: 'general' }).listing;
+  const payment = { orderId: `trtest_${'a'.repeat(32)}`, expiresAt: now + 60_000 };
+  const order = market.createOrder('buyer', listing.id, payment);
+  assert.equal(order.status, 'held'); assert.equal(order.testPayment?.status, 'pending');
+  assert.throws(() => market.createOrder('other', listing.id, { ...payment, orderId: `trtest_${'b'.repeat(32)}` }), hasCode('LISTING_UNAVAILABLE'));
+  assert.throws(() => market.markSent('seller', order.id), hasCode('PAYMENT_PENDING'));
+  assert.throws(() => market.beginTestPaymentConfirmation('other', order.id, payment.orderId, order.amount, 'key-a'), hasCode('ORDER_NOT_FOUND'));
+  assert.throws(() => market.beginTestPaymentConfirmation('buyer', order.id, payment.orderId, order.amount + 1, 'key-a'), hasCode('BAD_PAYMENT'));
+  market.beginTestPaymentConfirmation('buyer', order.id, payment.orderId, order.amount, 'key-a');
+  assert.throws(() => market.beginTestPaymentConfirmation('buyer', order.id, payment.orderId, order.amount, 'key-b'), hasCode('BAD_PAYMENT'));
+  assert.throws(() => market.cancelOrder('buyer', order.id), hasCode('PAYMENT_RECONCILIATION_REQUIRED'));
+  market.beginTestPaymentConfirmation('buyer', order.id, payment.orderId, order.amount, 'key-a');
+  market.completeTestPaymentConfirmation('buyer', order.id, payment.orderId, order.amount, 'key-a');
+  market.completeTestPaymentConfirmation('buyer', order.id, payment.orderId, order.amount, 'key-a');
+  assert.equal(order.testPayment?.status, 'approved');
+  market.markSent('seller', order.id); market.confirmReceived('buyer', order.id);
+  assert.equal(order.status, 'settled');
+});
+
+test('only pending test payments expire and release their listing; uncertain approvals remain reserved', () => {
+  let now = Date.parse('2026-11-03T12:00:00Z');
+  const state = seedState(akmu, new Date(now).toISOString());
+  state.users.push({ id: 'buyer', name: '구매자', alertsOn: true, favorites: [] });
+  const market = new MarketCore(state, { now: () => now });
+  const one = market.createOrder('buyer', 'lst-akmu-1', { orderId: `trtest_${'c'.repeat(32)}`, expiresAt: now + 1000 });
+  const two = market.createOrder('buyer', 'lst-akmu-2', { orderId: `trtest_${'d'.repeat(32)}`, expiresAt: now + 1000 });
+  market.beginTestPaymentConfirmation('buyer', two.id, two.testPayment!.orderId, two.amount, 'key-b');
+  now += 1000;
+  assert.equal(market.expirePendingTestPayments(), 1);
+  assert.equal(one.testPayment?.status, 'expired'); assert.equal(market.getListing(one.listingId).listing.status, 'active');
+  assert.equal(two.testPayment?.status, 'confirming'); assert.equal(market.getListing(two.listingId).listing.status, 'reserved');
 });
 
 test('accounts: scrypt hash only, duplicate names, wrong password, file store private', () => {
@@ -115,6 +154,35 @@ test('accounts: scrypt hash only, duplicate names, wrong password, file store pr
   assert.ok(!readFileSync(file, 'utf8').includes('Pass-1234!'));
   const again = new MarketService(file);
   assert.ok(again.login({ name: '티켓팬', password: 'Pass-1234!' }).token);
+});
+
+test('migration lock prevents a cooperating server from writing and releases safely', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aid-migration-lock-'));
+  const file = join(dir, 'market.json');
+  const service = new MarketService(file);
+  service.tx(() => service.signup({ name: '기존회원', password: 'Valid-pass1!' }));
+  const before = readFileSync(file, 'utf8');
+  const release = acquireMarketFileLock(file);
+  try {
+    assert.throws(() => acquireMarketFileLock(file), { code: 'EEXIST' });
+    assert.throws(() => service.tx(() => service.signup({ name: '새회원', password: 'Valid-pass1!' })), hasCode('MARKET_STORE_ERROR'));
+    assert.equal(readFileSync(file, 'utf8'), before);
+    assert.ok(!service.core.state.users.some(user => user.name === '새회원'));
+  } finally { release(); }
+  assert.ok(!existsSync(`${file}.write-lock`));
+  assert.ok(service.tx(() => service.signup({ name: '새회원', password: 'Valid-pass1!' })).token);
+});
+
+test('migrated source marker prevents writes and rolls back in-memory state', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aid-migrated-source-'));
+  const file = join(dir, 'market.json');
+  const service = new MarketService(file);
+  service.tx(() => service.signup({ name: '기존회원', password: 'Valid-pass1!' }));
+  const before = readFileSync(file, 'utf8');
+  writeFileSync(`${file}.migrated`, 'migrated', { mode: 0o600, flag: 'wx' });
+  assert.throws(() => service.tx(() => service.signup({ name: '새회원', password: 'Valid-pass1!' })), hasCode('MARKET_STORE_ERROR'));
+  assert.equal(readFileSync(file, 'utf8'), before);
+  assert.ok(!service.core.state.users.some(user => user.name === '새회원'));
 });
 
 test('email accounts persist and legacy nickname accounts remain usable', () => {
@@ -176,13 +244,18 @@ test('HTTP: signup → favorite → seller lists below face → alert → buy (d
     assert.equal((await call('POST', '/auth/login', { email: 'test@example.org', password: 'wrong-password' })).status, 401);
     await call('PUT', `/me/favorites/${encodeURIComponent(akmu.id)}`, undefined, buyer);
     assert.equal((await call('GET', '/shows?category=concert', undefined, buyer)).body.find((s: any) => s.id === akmu.id).favorite, true);
-    const preview = await call('POST', '/listings/preview', { showId: akmu.id, seatGrade: 'VIP', pricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' });
+    const preview = await call('POST', '/listings/preview', { showId: akmu.id, seatGrade: 'VIP', pricePerTicket: 170000, originalPricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' });
     assert.equal(preview.body.priceText, '6,000원 저렴해요');
-    const denied = await call('POST', '/listings', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 176001, delivery: 'official_transfer', bookingType: 'general' }, seller);
+    const denied = await call('POST', '/listings', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 176001, originalPricePerTicket: 176001, delivery: 'official_transfer', bookingType: 'general' }, seller);
     assert.equal(denied.status, 400); assert.equal(denied.body.code, 'PRICE_ABOVE_FACE');
-    const unknown = await call('POST', '/listings', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: '미확인석', quantity: 1, pricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' }, seller);
+    const unknown = await call('POST', '/listings', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: '미확인석', quantity: 1, pricePerTicket: 170000, originalPricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' }, seller);
     assert.equal(unknown.status, 409); assert.equal(unknown.body.code, 'FACE_PRICE_UNVERIFIED');
-    const created = await call('POST', '/listings', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' }, seller);
+    const baseListing = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 150000, originalPricePerTicket: 140000, delivery: 'official_transfer', bookingType: 'general' };
+    assert.equal((await call('POST', '/listings', baseListing, seller)).body.code, 'PRICE_ABOVE_PURCHASE');
+    assert.equal((await call('POST', '/listings', { ...baseListing, quantity: 2, originalPricePerTicket: 150000 }, seller)).body.code, 'BAD_REQUEST');
+    const { originalPricePerTicket: _ignored, ...withoutOriginal } = baseListing;
+    assert.equal((await call('POST', '/listings', withoutOriginal, seller)).body.code, 'BAD_REQUEST');
+    const created = await call('POST', '/listings', { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'VIP', quantity: 1, pricePerTicket: 170000, originalPricePerTicket: 170000, delivery: 'official_transfer', bookingType: 'general' }, seller);
     assert.equal(created.status, 201);
     assert.equal((await call('GET', '/me', undefined, buyer)).body.unread, 1);
     const order = await call('POST', '/orders', { listingId: created.body.listing.id }, buyer);
@@ -207,7 +280,7 @@ test('review fixes: buyer cannot cancel after sent, delivery key check, listing 
   const sent = m.createOrder('u1', 'lst-akmu-1'); // 시연 판매자 → 바로 sent
   assert.throws(() => m.cancelOrder('u1', sent.id), hasCode('BAD_STATE'));
   assert.equal(m.getListing('lst-akmu-1').listing.status, 'reserved');
-  const base = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, bookingType: 'general' as const };
+  const base = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, originalPricePerTicket: 150000, bookingType: 'general' as const };
   for (const bad of ['__proto__', 'toString', 'constructor']) assert.throws(() => m.createListing('u2', { ...base, delivery: bad as never }), hasCode('BAD_REQUEST'));
   for (let i = 0; i < 20; i++) m.createListing('u2', { ...base, delivery: 'official_transfer' });
   assert.throws(() => m.createListing('u2', { ...base, delivery: 'official_transfer' }), hasCode('LISTING_LIMIT'));
@@ -236,7 +309,7 @@ test('TODO ⑥⑨: client IP honours X-Forwarded-For only with TRUST_PROXY; fail
   assert.ok(token);
   const before = svc.core.state.listings.length;
   svc.writeFile = (() => { throw new Error('ENOSPC'); }) as any;
-  assert.throws(() => svc.tx(() => svc.core.createListing(user.id, { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, delivery: 'official_transfer', bookingType: 'general' })), hasCode('MARKET_STORE_ERROR'));
+  assert.throws(() => svc.tx(() => svc.core.createListing(user.id, { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 150000, originalPricePerTicket: 150000, delivery: 'official_transfer', bookingType: 'general' })), hasCode('MARKET_STORE_ERROR'));
   assert.equal(svc.core.state.listings.length, before, 'listing rolled back');
   assert.throws(() => svc.tx(() => svc.signup({ name: 'ghost', password: 'Tx-pass-123!' })), hasCode('MARKET_STORE_ERROR'));
   assert.ok(!svc.core.state.users.some(u => u.name === 'ghost'), 'user rolled back');
@@ -267,4 +340,89 @@ test('APP-031: ALLOW_SIGNUP_WITHOUT_EMAIL=1 is the only way to sign up without e
     if (prev === undefined) delete process.env.ALLOW_SIGNUP_WITHOUT_EMAIL; else process.env.ALLOW_SIGNUP_WITHOUT_EMAIL = prev;
     await new Promise<void>((r, j) => server.close(e => e ? j(e) : r()));
   }
+});
+
+
+test('new listings require one ticket and cannot exceed seller stated original price', () => {
+  const m = core();
+  const base = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 120000, originalPricePerTicket: 150000, delivery: 'onsite' as const, bookingType: 'general' as const };
+  assert.throws(() => m.createListing('u2', { ...base, quantity: 2 }), hasCode('BAD_REQUEST'));
+  assert.throws(() => m.createListing('u2', { ...base, originalPricePerTicket: 119999 }), hasCode('PRICE_ABOVE_PURCHASE'));
+  assert.throws(() => m.createListing('u2', { ...base, originalPricePerTicket: NaN }), hasCode('BAD_REQUEST'));
+  assert.equal(m.createListing('u2', base).listing.originalPricePerTicket, 150000);
+});
+
+test('file store survives restart with new policy and preserves legacy listing data', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aid-shared-persist-'));
+  const file = join(dir, 'market.json');
+  const first = new MarketService(file);
+  const seller = first.signup({ name: '격리판매자', password: 'Seller-pass-1!' }).user;
+  const buyer = first.signup({ name: '격리구매자', password: 'Buyer-pass-1!' }).user;
+  const legacyId = 'lst-akmu-1';
+  const legacyBefore = structuredClone(first.core.getListing(legacyId).listing);
+  const input = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 120000, originalPricePerTicket: 150000, delivery: 'onsite' as const, bookingType: 'general' as const };
+  const { listing } = first.tx(() => first.core.createListing(seller.id, input));
+  const order = first.tx(() => first.core.createOrder(buyer.id, listing.id));
+  const reopened = new MarketService(file);
+  assert.ok(reopened.login({ name: '격리판매자', password: 'Seller-pass-1!' }).token);
+  assert.deepEqual(reopened.core.getListing(legacyId).listing, legacyBefore);
+  assert.equal(reopened.core.getOrder(buyer.id, order.id).order.status, 'held');
+  assert.equal(reopened.core.getListing(listing.id).listing.originalPricePerTicket, 150000);
+  assert.throws(() => reopened.core.createListing(seller.id, { ...input, pricePerTicket: 150001 }), hasCode('PRICE_ABOVE_PURCHASE'));
+});
+
+test('injected atomic storage preserves accounts and orders and rolls back failed saves', () => {
+  let saved: string | null = null;
+  let fail = false;
+  const store = { load: () => saved, save: (value: string) => { if (fail) throw new Error('storage unavailable'); saved = value; } };
+  const first = new MarketService(null, Date.now, store);
+  const seller = first.tx(() => first.signup({ name: '저장판매자', password: 'Seller-pass-1!' })).user;
+  const buyer = first.tx(() => first.signup({ name: '저장구매자', password: 'Buyer-pass-1!' })).user;
+  const input = { showId: akmu.id, sessionId: akmu.sessions[0].id, seatGrade: 'R', quantity: 1, pricePerTicket: 120000, originalPricePerTicket: 150000, delivery: 'onsite' as const, bookingType: 'general' as const };
+  const { listing } = first.tx(() => first.core.createListing(seller.id, input));
+  const order = first.tx(() => first.core.createOrder(buyer.id, listing.id));
+  const restored = new MarketService(null, Date.now, store);
+  assert.equal(restored.login({ name: '저장구매자', password: 'Buyer-pass-1!' }).user.id, buyer.id);
+  assert.equal(restored.core.getOrder(buyer.id, order.id).order.status, 'held');
+  fail = true;
+  assert.throws(() => restored.tx(() => restored.core.markSent(seller.id, order.id)), hasCode('MARKET_STORE_ERROR'));
+  assert.equal(restored.core.getOrder(buyer.id, order.id).order.status, 'held');
+  fail = false;
+  assert.equal(new MarketService(null, Date.now, store).core.getOrder(buyer.id, order.id).order.status, 'held');
+  assert.throws(() => new MarketService('/tmp/file', Date.now, store));
+});
+
+test('invalid external storage data fails closed without replacing existing data', () => {
+  for (const raw of ['{', '{}', '{"version":2,"state":{},"credentials":{}}', '{"version":1,"state":{},"credentials":{}}']) {
+    let writes = 0;
+    const store = { load: () => raw, save: () => { writes++; } };
+    assert.throws(() => new MarketService(null, Date.now, store), hasCode('MARKET_STORE_ERROR'));
+    assert.equal(writes, 0);
+  }
+});
+
+test('external storage preserves hashed sessions across restart and revokes logout', () => {
+  let saved: string | null = null;
+  const store = { load: () => saved, save: (value: string) => { saved = value; } };
+  const first = new MarketService(null, Date.now, store);
+  const session = first.tx(() => first.signup({ name: '세션회원', password: 'Test-pass1!' }));
+  assert.ok(saved); assert.ok(!String(saved).includes(session.token), 'raw session token must never be stored');
+  const reopened = new MarketService(null, Date.now, store);
+  const req = { headers: { authorization: `Bearer ${session.token}` } } as import('node:http').IncomingMessage;
+  assert.equal(reopened.userOf(req), session.user.id);
+  reopened.logout(req);
+  const afterLogout = new MarketService(null, Date.now, store);
+  assert.throws(() => afterLogout.userOf(req), hasCode('UNAUTHORIZED'));
+});
+
+test('failed external session persistence does not issue or revoke a usable session', () => {
+  let saved: string | null = null; let fail = false;
+  const store = { load: () => saved, save: (value: string) => { if (fail) throw new Error('storage unavailable'); saved = value; } };
+  const service = new MarketService(null, Date.now, store);
+  const session = service.tx(() => service.signup({ name: '저장회원', password: 'Test-pass1!' }));
+  const req = { headers: { authorization: `Bearer ${session.token}` } } as import('node:http').IncomingMessage;
+  fail = true;
+  assert.throws(() => service.login({ name: '저장회원', password: 'Test-pass1!' }), hasCode('MARKET_STORE_ERROR'));
+  assert.throws(() => service.logout(req), hasCode('MARKET_STORE_ERROR'));
+  assert.equal(service.userOf(req), session.user.id);
 });

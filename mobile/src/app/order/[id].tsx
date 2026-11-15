@@ -1,6 +1,6 @@
 import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, Text, View } from 'react-native';
 import { toApiError } from '../../api/client';
 import type { OrderDetail } from '../../market/api';
 import { deliveryText } from '../../market/engine';
@@ -18,6 +18,14 @@ export default function OrderScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') setReload(value => value + 1); });
+    return () => subscription.remove();
+  }, []);
+  const backToOrders = () => {
+    if (paid !== '1' && router.canGoBack()) router.dismissTo('/orders');
+    else router.replace('/orders');
+  };
   useFocusEffect(
     useCallback(() => {
       if (!token) return;
@@ -45,27 +53,30 @@ export default function OrderScreen() {
       setBusy(false);
     }
   }
-  if (!d) return <TScreen top={<TNav onBack={() => router.replace('/orders')} />}>{error ? <ErrorLine text={error} /> : <Loading />}</TScreen>;
+  if (!d) return <TScreen top={<TNav onBack={backToOrders} />}>{error ? <ErrorLine text={error} /> : <Loading />}</TScreen>;
   const { order: o, listing: l, show, session, role } = d;
-  const done = o.status === 'settled' ? 4 : o.status === 'sent' ? 2 : o.status === 'held' ? 1 : 0;
+  const paymentPending = o.testPayment?.status === 'pending' || o.testPayment?.status === 'confirming';
+  const done = paymentPending ? 0 : o.status === 'settled' ? 4 : o.status === 'sent' ? 2 : o.status === 'held' ? 1 : 0;
   const title =
     o.status === 'cancelled' ? '거래가 취소됐어요'
+    : o.testPayment?.status === 'pending' ? '테스트 결제를\n기다리고 있어요'
+    : o.testPayment?.status === 'confirming' ? '테스트 결제 결과를\n확인하고 있어요'
     : o.status === 'settled' ? '거래가 끝났어요'
     : o.status === 'sent' ? (role === 'buyer' ? '티켓이 도착했는지\n확인해 주세요' : '구매자가 티켓을\n확인하고 있어요')
     : role === 'buyer' ? '판매자가 티켓을\n보내고 있어요' : '구매자가 결제했어요\n티켓을 보내 주세요';
   const footer =
     o.status === 'sent' && role === 'buyer' ? <CTA label="티켓 받았어요" busy={busy} onPress={() => void act('confirm')} />
-    : o.status === 'held' && role === 'seller' ? <CTA label="공식 양도로 보냈어요" busy={busy} onPress={() => void act('sent')} />
-    : o.status === 'held' && role === 'buyer' ? <CTA label="거래 취소" tone="grey" busy={busy} onPress={() => void act('cancel')} />
+    : o.status === 'held' && role === 'seller' && !paymentPending ? <CTA label="티켓을 전달했어요" busy={busy} onPress={() => void act('sent')} />
+    : o.status === 'held' && role === 'buyer' && o.testPayment?.status !== 'confirming' ? <CTA label="거래 취소" tone="grey" busy={busy} onPress={() => void act('cancel')} />
     : undefined;
   return (
-    <TScreen top={<TNav onBack={() => router.replace('/orders')} />} footer={footer ? <>{error ? <Text style={[tt.desc, { color: t.red, textAlign: 'center' }]}>{error}</Text> : null}{o.status === 'sent' && role === 'buyer' ? <Text style={[tt.desc, { textAlign: 'center' }]}>예매처 앱에 티켓이 보일 때 눌러 주세요</Text> : null}{footer}</> : undefined}>
+    <TScreen top={<TNav onBack={backToOrders} />} footer={footer ? <>{error ? <Text style={[tt.desc, { color: t.red, textAlign: 'center' }]}>{error}</Text> : null}{o.status === 'sent' && role === 'buyer' ? <Text style={[tt.desc, { textAlign: 'center' }]}>{l.delivery === 'official_transfer' ? '예매처 앱에 티켓이 보일 때 눌러 주세요' : '티켓을 직접 확인한 후 눌러 주세요'}</Text> : null}{footer}</> : undefined}>
       <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 20, gap: 16 }}>
-        {(paid === '1' && o.status !== 'cancelled') || o.status === 'settled' ? (
+        {(paid === '1' && o.status !== 'cancelled' && !paymentPending) || o.status === 'settled' ? (
           <CheckDraw key={o.status} size={56} gentle />
         ) : null}
         <Text accessibilityRole="header" style={tt.hero}>{title}</Text>
-        {o.status !== 'cancelled' ? <StepBar steps={STEPS} done={done} /> : null}
+        {o.status !== 'cancelled' ? <StepBar steps={STEPS} done={done} animateCompletion={o.status === 'settled'} /> : null}
       </View>
       <Band />
       <Section>
@@ -76,7 +87,7 @@ export default function OrderScreen() {
       <Section style={{ paddingBottom: 16 }}>
         <KV k="주문" v={`${show.title.replace('[가상] ', '')} · ${l.seatGrade} ${l.quantity}매`} />
         <KV k="공연일" v={session?.label ?? '-'} />
-        <KV k={role === 'buyer' ? '결제 (시연)' : '정산 예정 (시연)'} v={won(o.amount)} />
+        <KV k={paymentPending ? '결제 예정 (테스트)' : role === 'buyer' ? '결제 (시연)' : '정산 예정 (시연)'} v={won(o.amount)} />
         <KV k="내 역할" v={role === 'buyer' ? '구매자' : '판매자'} />
       </Section>
     </TScreen>

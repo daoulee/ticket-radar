@@ -9,6 +9,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withSpring,
@@ -157,7 +158,7 @@ export function CheckDraw({ size = 72, color = T.primary, gentle = false }: { si
   const p = useSharedValue(0);
   const scale = useSharedValue(gentle ? 0.96 : 0.6);
   useEffect(() => {
-    p.set(withTiming(1, { duration: gentle ? 260 : 520, easing: ease, reduceMotion: RM }));
+    p.set(gentle ? withDelay(300, withTiming(1, { duration: 420, easing: ease, reduceMotion: RM }), RM) : withTiming(1, { duration: 520, easing: ease, reduceMotion: RM }));
     scale.set(gentle ? withTiming(1, { duration: 200, easing: ease, reduceMotion: RM }) : withSpring(1, { damping: 10, stiffness: 180, reduceMotion: RM }));
   }, [gentle, p, scale]);
   const L = 30;
@@ -174,38 +175,39 @@ export function CheckDraw({ size = 72, color = T.primary, gentle = false }: { si
 }
 
 /** 단계 진행 막대: 완료 칸이 차오르고, 현재 칸은 은은하게 숨 쉰다. */
-export function StepBar({ steps, done }: { steps: string[]; done: number }) {
+export function StepBar({ steps, done, animateCompletion = false }: { steps: string[]; done: number; animateCompletion?: boolean }) {
   return (
     <View accessible accessibilityLabel={`진행 단계 ${done}/${steps.length}: ${steps[Math.max(0, done - 1)]}`}>
       <View style={{ flexDirection: 'row', gap: 6 }}>
         {steps.map((s, i) => (
-          <Seg key={s} filled={i < done} current={i === done - 1 && done < steps.length} />
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-        {steps.map((s, i) => (
-          <Text key={s} style={{ fontSize: 12, fontWeight: i < done ? '700' : '500', color: i < done ? T.ink : '#8B95A1' }}>
-            {s}
-          </Text>
+          <View key={s} style={{ flex: 1, minWidth: 0, gap: 8 }}>
+            <Seg filled={i < done} current={i === done - 1 && done < steps.length} completionIndex={animateCompletion && done === steps.length ? i : null} />
+            <Text style={{ textAlign: 'center', fontSize: 12, fontWeight: i < done ? '700' : '500', color: i < done ? T.ink : '#8B95A1' }}>{s}</Text>
+          </View>
         ))}
       </View>
     </View>
   );
 }
-function Seg({ filled, current }: { filled: boolean; current: boolean }) {
-  const f = useSharedValue(filled ? 1 : 0);
-  const pulse = useSharedValue(1);
+function Seg({ filled, current, completionIndex }: { filled: boolean; current: boolean; completionIndex: number | null }) {
   const reduced = useReducedMotion();
+  const f = useSharedValue(completionIndex !== null && !reduced ? 0 : filled ? 1 : 0);
+  const pulse = useSharedValue(1);
   useEffect(() => {
-    f.set(withTiming(filled ? 1 : 0, { duration: 420, easing: ease, reduceMotion: RM }));
-  }, [filled, f]);
+    if (completionIndex !== null && filled && !reduced) {
+      f.set(0);
+      f.set(withDelay(340 + completionIndex * 200, withTiming(1, { duration: 260, easing: ease, reduceMotion: RM }), RM));
+    } else {
+      f.set(withTiming(filled ? 1 : 0, { duration: 420, easing: ease, reduceMotion: RM }));
+    }
+  }, [completionIndex, filled, f, reduced]);
   useEffect(() => {
     if (current && !reduced) pulse.set(withRepeat(withSequence(withTiming(0.55, { duration: 700 }), withTiming(1, { duration: 700 })), -1));
     else pulse.set(1);
   }, [current, reduced, pulse]);
   const a = useAnimatedStyle(() => ({ width: `${f.value * 100}%`, opacity: pulse.value }));
   return (
-    <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.g2, overflow: 'hidden' }}>
+    <View style={{ width: '100%', height: 6, borderRadius: 3, backgroundColor: T.g2, overflow: 'hidden' }}>
       <Animated.View style={[{ height: 6, borderRadius: 3, backgroundColor: T.primary }, a]} />
     </View>
   );

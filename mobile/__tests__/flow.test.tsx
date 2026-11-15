@@ -160,7 +160,8 @@ describe('앱 핵심 흐름 (시연 데이터)', () => {
 
     await fireEvent.press(screen.getByText('값 수정하고 다시 대조'));
     await waitFor(() => expect(screen).toHavePathname('/review'));
-    await fireEvent.changeText(screen.getByLabelText('가격 입력'), '154,000');
+    await fireEvent.changeText(screen.getByLabelText('가격 입력'), '154000');
+    expect(screen.getByLabelText('가격 입력')).toHaveProp('value', '154,000');
     expect(screen.getAllByText('사용자 수정').length).toBeGreaterThan(0);
 
     await compare();

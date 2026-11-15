@@ -105,7 +105,24 @@ export function accountsFromEnv(value: string | undefined): OrganizerAccount[] {
   });
 }
 
+/** Public demo inbox stays disabled until explicit configuration with strong access codes. */
+export function cloudOrganizerAccounts(enabled: string | undefined, value: string | undefined): OrganizerAccount[] {
+  if (enabled !== '1') return [];
+  const entries = (value ?? '').split(';').map(item => item.trim()).filter(Boolean);
+  if (!entries.length || entries.length > 100) throw new ApiError('INVALID_ORGANIZER_CONFIG', '담당자 설정을 확인해 주세요.', 500);
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    const pieces = entry.split(':');
+    const [id, code, events] = pieces;
+    if (pieces.length !== 3 || !id || ids.has(id) || !code || !/^[A-Za-z0-9_-]{32,128}$/.test(code) || new Set(code).size < 12 || !events || events.split(',').some(event => !/^[A-Za-z0-9_-]{1,100}$/.test(event.trim()))) throw new ApiError('INVALID_ORGANIZER_CONFIG', '담당자 설정을 확인해 주세요.', 500);
+    ids.add(id);
+  }
+  return accountsFromEnv(value);
+}
+
 interface Session { accountId: string; expiresAt: number }
+export interface ReportPersistence { load(): string | null; save(serialized: string): void }
+export interface OrganizerSessionPersistence { load(): string | null; save(serialized: string): void }
 
 export class ReportService {
   private readonly reports = new Map<string, Report>();
@@ -113,25 +130,60 @@ export class ReportService {
   private readonly sessions = new Map<string, Session>();
   private readonly accounts: OrganizerAccount[];
   private readonly file: string | null;
+  private readonly persistence: ReportPersistence | null;
+  private readonly sessionPersistence: OrganizerSessionPersistence | null;
   private readonly now: () => number;
 
-  constructor(accounts: OrganizerAccount[] = [], file: string | null = null, now: () => number = Date.now) {
-    this.accounts = accounts; this.file = file; this.now = now;
-    if (file) {
+  constructor(accounts: OrganizerAccount[] = [], file: string | null = null, now: () => number = Date.now, persistence: ReportPersistence | null = null, sessionPersistence: OrganizerSessionPersistence | null = null) {
+    if (file && persistence) throw new Error('파일과 외부 제보 저장소를 동시에 사용할 수 없습니다.');
+    this.accounts = accounts; this.file = file; this.now = now; this.persistence = persistence; this.sessionPersistence = sessionPersistence;
+    if (persistence) {
+      try {
+        const raw = persistence.load();
+        if (raw !== null) {
+          const saved: unknown = JSON.parse(raw);
+          if (!Array.isArray(saved) || saved.length > 5000) throw new Error('Invalid report store');
+          for (const value of saved) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid report');
+            const r = value as Report;
+            if (typeof r.id !== 'string' || !UUID.test(r.id) || typeof r.clientRequestId !== 'string' || !UUID.test(r.clientRequestId) || this.reports.has(r.id) || this.byClientRequest.has(r.clientRequestId) || typeof r.eventId !== 'string' || !r.eventId || typeof r.createdAt !== 'string' || !Number.isFinite(Date.parse(r.createdAt)) || !(REPORT_STATUSES as readonly string[]).includes(r.status) || typeof r.memo !== 'string' || typeof r.listingExcerpt !== 'string' || typeof r.description !== 'string' || typeof r.isDemo !== 'boolean' || !Array.isArray(r.findings) || !Array.isArray(r.history)) throw new Error('Invalid report');
+            this.reports.set(r.id, r); this.byClientRequest.set(r.clientRequestId, r.id);
+          }
+        }
+      } catch { throw new ApiError('REPORT_STORE_ERROR', '제보 저장소를 읽지 못했습니다.', 500); }
+    } else if (file) {
       try {
         const saved = JSON.parse(readFileSync(file, 'utf8')) as Report[];
         for (const r of saved) { this.reports.set(r.id, r); this.byClientRequest.set(r.clientRequestId, r.id); }
       } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw new ApiError('REPORT_STORE_ERROR', '제보 저장소를 읽지 못했습니다.', 500); }
     }
+    if (sessionPersistence) {
+      try {
+        const raw = sessionPersistence.load();
+        if (raw !== null) {
+          const value: unknown = JSON.parse(raw);
+          if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid organizer sessions');
+          const data = value as { version?: unknown; sessions?: unknown };
+          if (data.version !== 1 || !Array.isArray(data.sessions) || data.sessions.length > 10_000) throw new Error('Invalid organizer sessions');
+          for (const item of data.sessions) {
+            if (!Array.isArray(item) || item.length !== 2 || typeof item[0] !== 'string' || !/^[a-f0-9]{64}$/.test(item[0]) || this.sessions.has(item[0]) || !item[1] || typeof item[1] !== 'object' || typeof item[1].accountId !== 'string' || !Number.isSafeInteger(item[1].expiresAt)) throw new Error('Invalid organizer session');
+            if (item[1].expiresAt > now() && accounts.some(account => account.id === item[1].accountId)) this.sessions.set(item[0], { accountId: item[1].accountId, expiresAt: item[1].expiresAt });
+          }
+        }
+      } catch { throw new ApiError('ORGANIZER_SESSION_STORE_ERROR', '담당자 로그인 정보를 읽지 못했습니다.', 503, true); }
+    }
   }
   get organizerConfigured() { return this.accounts.length > 0; }
 
   private persist() {
-    if (!this.file) return;
+    if (!this.file && !this.persistence) return;
     try {
+      const serialized = JSON.stringify([...this.reports.values()]);
+      if (this.persistence) { this.persistence.save(serialized); return; }
+      if (!this.file) throw new Error('저장소가 없습니다.');
       mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });
       const tmp = `${this.file}.${process.pid}.tmp`;
-      (this.writeFile ?? writeFileSync)(tmp, JSON.stringify([...this.reports.values()]), { mode: 0o600 });
+      (this.writeFile ?? writeFileSync)(tmp, serialized, { mode: 0o600 });
       renameSync(tmp, this.file);
     } catch {
       throw new ApiError('REPORT_STORE_ERROR', '제보를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.', 503, true);
@@ -139,6 +191,13 @@ export class ReportService {
   }
   /** 테스트용: 파일 쓰기 대체(디스크 가득 참 흉내). */
   writeFile: typeof writeFileSync | null = null;
+
+  private sessionKey(token: string) { return this.sessionPersistence ? createHash('sha256').update(token).digest('hex') : token; }
+  private persistSessions() {
+    if (!this.sessionPersistence) return;
+    try { this.sessionPersistence.save(JSON.stringify({ version: 1, sessions: [...this.sessions] })); }
+    catch { throw new ApiError('ORGANIZER_SESSION_STORE_ERROR', '담당자 로그인 정보를 저장하지 못했어요.', 503, true); }
+  }
 
   /** 같은 clientRequestId 재전송은 새로 만들지 않고 처음 제보를 돌려준다(중복 전송 방지). */
   create(input: ReturnType<typeof parseReportRequest>): { report: Report; duplicate: boolean } {
@@ -166,21 +225,30 @@ export class ReportService {
     let match: OrganizerAccount | undefined;
     for (const a of this.accounts) if (timingSafeEqual(a.codeHash, given) && a.id === id) match = a;
     if (!match || code.length > 200) throw new ApiError('INVALID_CREDENTIALS', '계정 또는 코드가 올바르지 않습니다.', 401);
+    const previous = new Map(this.sessions);
     for (const [t, s] of this.sessions) if (s.expiresAt <= this.now()) this.sessions.delete(t);
+    if (this.sessions.size >= 10_000) throw new ApiError('RATE_LIMITED', '담당자 로그인 한도에 도달했어요.', 429, true);
     const token = randomBytes(32).toString('base64url');
     const expiresAt = this.now() + 2 * 3600_000;
-    this.sessions.set(token, { accountId: match.id, expiresAt });
+    this.sessions.set(this.sessionKey(token), { accountId: match.id, expiresAt });
+    try { this.persistSessions(); } catch (error) { this.sessions.clear(); for (const [key, session] of previous) this.sessions.set(key, session); throw error; }
     return { token, accountId: match.id, eventIds: match.eventIds, expiresAt: new Date(expiresAt).toISOString(), demoAccount: true };
   }
 
-  logout(token: string) { this.sessions.delete(token); }
+  logout(token: string) {
+    const key = this.sessionKey(token), old = this.sessions.get(key);
+    if (!old) return;
+    this.sessions.delete(key);
+    try { this.persistSessions(); } catch (error) { this.sessions.set(key, old); throw error; }
+  }
 
   authorize(req: IncomingMessage): OrganizerAccount {
     const header = req.headers.authorization ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-    const session = token ? this.sessions.get(token) : undefined;
+    const key = token ? this.sessionKey(token) : '';
+    const session = key ? this.sessions.get(key) : undefined;
     if (!session || session.expiresAt <= this.now()) {
-      if (token) this.sessions.delete(token);
+      if (key) this.sessions.delete(key);
       throw new ApiError('UNAUTHORIZED', '로그인이 필요하거나 만료됐습니다.', 401);
     }
     const account = this.accounts.find(a => a.id === session.accountId);
@@ -208,14 +276,15 @@ export class ReportService {
     const r = this.get(account, id);
     const b = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null) as Record<string, unknown> | null;
     if (!b || Object.keys(b).some(k => k !== 'status' && k !== 'memo') || (b.status === undefined && b.memo === undefined)) throw new ApiError('BAD_REQUEST', 'status 또는 memo만 바꿀 수 있습니다.');
+    if (b.status !== undefined && (typeof b.status !== 'string' || !(REPORT_STATUSES as readonly string[]).includes(b.status))) throw new ApiError('BAD_REQUEST', '처리 상태 값이 올바르지 않습니다.');
+    const status = b.status as ReportStatus | undefined;
+    const memo = b.memo === undefined ? undefined : maskContacts(str(b.memo, 'memo', 1000));
     const at = new Date(this.now()).toISOString();
     const before = { status: r.status, memo: r.memo, history: r.history.length };
-    if (b.status !== undefined) {
-      if (typeof b.status !== 'string' || !(REPORT_STATUSES as readonly string[]).includes(b.status)) throw new ApiError('BAD_REQUEST', '처리 상태 값이 올바르지 않습니다.');
-      if (b.status !== r.status) { r.history.push({ at, actor: account.id, action: 'status', from: r.status, to: b.status }); r.status = b.status as ReportStatus; }
+    if (status !== undefined) {
+      if (status !== r.status) { r.history.push({ at, actor: account.id, action: 'status', from: r.status, to: status }); r.status = status; }
     }
-    if (b.memo !== undefined) {
-      const memo = maskContacts(str(b.memo, 'memo', 1000));
+    if (memo !== undefined) {
       if (memo !== r.memo) { r.history.push({ at, actor: account.id, action: 'memo' }); r.memo = memo; }
     }
     try { this.persist(); } catch (e) {

@@ -137,6 +137,10 @@ export default function HomeScreen() {
           <Text style={[tt.desc, { marginTop: api.mode === 'demo' ? 0 : 6 }]}>썸네일은 임시 이미지예요</Text>
         </Animated.View>
 
+        <Section title="가상 예매 체험">
+          <Row title="대기부터 좌석 선택까지" desc="가상 공연으로 예매 흐름을 체험해요" end="chevronRight" onPress={() => router.push('/demo-booking')} />
+        </Section>
+        <Band />
         <Section title="즐겨찾기" right={token ? '전체 보기' : undefined} onRight={() => router.push('/favorites')} style={{ paddingBottom: 20 }}>
           {!token ? (
             <Row title="로그인하고 즐겨찾기를 모아 보세요" desc="새 매물·정가 이하 알림을 받을 수 있어요" icon="heart" iconColor={t.red} iconBg={t.redBg} end="chevronRight" onPress={() => router.push('/login')} />

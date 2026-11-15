@@ -2,7 +2,7 @@
 .market-demo { display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-radius: 14px; background: #f0f2f8; color: #526173; font-size: .875rem; line-height: 1.5; }
 .market-demo strong { color: #404890; white-space: nowrap; }
 .market-heading { display: flex; justify-content: space-between; align-items: end; gap: 32px; padding: clamp(48px, 7vw, 90px) 0 48px; }
-.market-kicker { color: #404890; font-size: .8125rem; font-weight: 800; letter-spacing: .06em; margin: 0 0 14px; }
+.market-kicker { color: #404890; font-size: .8125rem; font-weight: 800; letter-spacing: .06em; margin: 0 0 14px; word-break: keep-all; overflow-wrap: anywhere; }
 .market-heading h2 { font-size: clamp(2.2rem, 4.5vw, 4rem); line-height: 1.18; letter-spacing: -.06em; margin: 0; }
 .market-heading p:not(.market-kicker) { color: #526173; font-size: 1.05rem; margin: 20px 0 0; line-height: 1.65; }
 .market-outline { flex: none; min-height: 48px; border: 1px solid #d4d9e8; border-radius: 999px; padding: 0 20px; background: #fff; color: #404890; font-weight: 700; cursor: pointer; }
@@ -44,7 +44,7 @@
 .market-detail-row strong { text-align: right; }
 .market-quantity { display: flex; justify-content: space-between; align-items: center; gap: 20px; border-top: 1px solid #edf0f5; padding: 16px 0; color: #526173; }
 .market-quantity select { width: auto; min-width: 90px; padding: 10px 14px; border-radius: 10px; border: 1px solid #dfe4ed; background: #fafbfe; }
-.market-warning { background: #f4f5fa; border-radius: 12px; color: #526173; padding: 16px; line-height: 1.6; font-size: .875rem; }
+.market-warning { background: #f4f5fa; border-radius: 12px; color: #526173; padding: 16px; line-height: 1.6; font-size: .875rem; word-break: keep-all; overflow-wrap: anywhere; }
 .market-primary { width: 100%; margin-top: 16px; }
 .market-inline { display: block; margin: 12px auto 0; }
 .market-form { display: grid; gap: 18px; }
@@ -56,3 +56,61 @@
 .market button:focus-visible, .market input:focus-visible, .market select:focus-visible { outline: 2px solid #404890; outline-offset: 3px; }
 @media (max-width: 640px) { .market { padding: 8px 16px 56px; } .market-demo { align-items: start; flex-direction: column; gap: 4px; } .market-heading { padding: 48px 0 36px; flex-direction: column; align-items: start; } .market-heading h2 { font-size: 2.3rem; } .market-toolbar { align-items: stretch; flex-direction: column-reverse; gap: 4px; } .market-search input { width: 100%; } .market-tabs { gap: 14px; } .market-grid { grid-template-columns: 1fr; } .market-extra { flex-direction: column; align-items: start; } .market-form-pair { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .market-item { transition: none; } }
+
+/* 화면은 즉시 교체하고 도착 화면에만 짧은 장식 모션을 적용한다. */
+@media (prefers-reduced-motion: no-preference) {
+  .market { animation: market-enter 260ms cubic-bezier(.2, 0, 0, 1) both; }
+  .market-view { animation: market-forward 240ms cubic-bezier(.2, 0, 0, 1) both; }
+  .market-view--back { animation-name: market-backward; }
+}
+@keyframes market-enter { from { opacity: .7; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes market-forward { from { opacity: .7; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes market-backward { from { opacity: .7; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+
+.booking-flow { max-width: 680px; }
+.booking-queue-mark, .booking-done-mark { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 18px; margin: 4px 0 24px; background: #eff0fa; color: #404890; font-size: 1.6rem; font-weight: 700; }
+.booking-queue-mark span { width: 20px; height: 20px; border: 2px solid #b6bad8; border-top-color: #404890; border-radius: 50%; }
+.booking-stage { text-align: center; margin: 12px auto 26px; max-width: 320px; padding: 9px; border-radius: 8px 8px 45% 45%; background: #edf0f7; color: #69788b; font-size: .8rem; font-weight: 700; }
+.booking-seat-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.booking-seat { min-width: 0; min-height: 44px; border: 1px solid #d7dceb; border-radius: 9px; background: #f7f8fc; color: #404890; font-size: .75rem; font-weight: 700; cursor: pointer; }
+.booking-seat[aria-pressed='true'] { background: #404890; color: white; border-color: #404890; }
+.booking-seat:disabled { color: #9da7b2; background: #e9ebef; cursor: not-allowed; text-decoration: line-through; }
+.booking-seat-status { margin: 18px 0 0; color: #526173; font-size: .875rem; }
+.booking-methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 0 20px; margin: 0; border: 0; min-width: 0; }
+.booking-methods legend { margin-bottom: 12px; font-weight: 700; }
+.booking-methods label { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 56px; padding: 14px 18px; border: 1px solid #d7dceb; border-radius: 12px; white-space: nowrap; cursor: pointer; }
+.booking-methods input[type='radio'] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; border: 0; box-shadow: none; accent-color: #404890; }
+.booking-methods label.is-selected { border-color: #404890; background: #f1f2fa; }
+.booking-methods label:focus-within { outline: 2px solid #404890; outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) { .booking-queue-mark span { animation: booking-spin 1s linear infinite; } .booking-flow { animation: market-enter 240ms cubic-bezier(.2, 0, 0, 1) both; } }
+@keyframes booking-spin { to { transform: rotate(360deg); } }
+@media (max-width: 480px) { .booking-seat-grid { gap: 4px; } .booking-seat { min-height: 44px; font-size: .67rem; } }
+.market-demo, .market-lede { word-break: keep-all; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .booking-seat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; } .booking-seat { min-height: 48px; font-size: .75rem; } }
+
+.market-show-head { display: flex; align-items: center; gap: clamp(20px, 4vw, 32px); margin-bottom: 28px; }
+.market-show-head > div { min-width: 0; }
+.market-show-head .market-lede { margin-bottom: 0; }
+.market-poster { flex: 0 0 clamp(110px, 23%, 156px); margin: 0; }
+.market-poster img { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 12px; background: #e8eaf2; }
+.market-poster figcaption { margin-top: 7px; color: #69788b; font-size: .75rem; line-height: 1.4; }
+@media (max-width: 480px) { .market-show-head { align-items: flex-start; gap: 18px; } .market-poster { flex-basis: 104px; } .market-show-head h2 { font-size: 1.45rem; overflow-wrap: anywhere; } }
+
+.booking-review-show { display: flex; align-items: center; gap: 20px; padding: 18px 0; border-top: 1px solid #edf0f5; }
+.booking-review-show > div { display: grid; gap: 8px; min-width: 0; }
+.booking-review-show > div span { color: #69788b; font-size: .875rem; }
+.booking-review-show > div strong { overflow-wrap: anywhere; font-size: 1.15rem; }
+.booking-review-poster { flex: 0 0 92px; margin: 0; }
+.booking-review-poster img { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; background: #e8eaf2; }
+.booking-review-poster figcaption { margin-top: 6px; color: #69788b; font-size: .7rem; line-height: 1.3; }
+@media (max-width: 480px) { .booking-review-show { gap: 16px; } .booking-review-poster { flex-basis: 76px; } }
+
+/* 공통 서버 계정 입력 */
+.market-auth { max-width: 520px; margin: 0 0 28px; }
+.market-auth-tabs { display: flex; gap: 24px; margin-bottom: 12px; }
+.market-auth-tabs button[aria-pressed="true"] { color: #19233b; border-bottom: 2px solid #404890; }
+.market-auth .market-outline { justify-self: start; min-height: 44px; }
+.market-auth .market-form p { margin: 0; }
+
+@keyframes market-auth-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: no-preference) { .market-auth .market-form { animation: market-auth-arrive 180ms ease-out; } }

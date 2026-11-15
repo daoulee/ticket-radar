@@ -114,7 +114,7 @@ export function ReviewForm({
               style={[styles.input, invalid.includes(key) && { borderColor: colors.errorText }]}
               keyboardType="number-pad"
               inputAccessoryViewID={NUMPAD_DONE_ID}
-              value={drafts[key]}
+              value={key === 'price' && /^\d[\d,]*$/.test(drafts.price) ? drafts.price.replace(/,/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',') : drafts[key]}
               placeholder={key === 'price' ? '예: 125000 (원)' : '예: 1'}
               placeholderTextColor={colors.muted}
               onChangeText={(t) => updateNumber(key, t)}

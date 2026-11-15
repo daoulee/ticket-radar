@@ -25,10 +25,11 @@ test('클라이언트 임의 가격과 실제 공연 데이터는 시연 구매 
   assert.equal(DemoMarketEventSchema.safeParse({ ...market().listEvents()[0], isSynthetic: false }).success, false);
 });
 
-test('양도 매물은 시연 구매가와 시연 양도가가 정확히 같아야 한다', () => {
+test('양도 매물은 시연 구매가 이하를 허용하고 초과를 거부한다', () => {
   const listing = market().listResale()[0];
   assert.equal(DemoResaleListingSchema.safeParse({ ...listing, listingUnitPrice: listing.originalUnitPrice + 1 }).success, false);
-  assert.equal(DemoResaleListingSchema.safeParse({ ...listing, listingUnitPrice: listing.originalUnitPrice - 1 }).success, false);
+  assert.equal(DemoResaleListingSchema.safeParse({ ...listing, listingUnitPrice: listing.originalUnitPrice - 1 }).success, true);
+  assert.equal(DemoResaleListingSchema.safeParse({ ...listing, listingUnitPrice: listing.originalUnitPrice }).success, true);
 });
 
 test('가상 판매자는 시연 매물을 등록하고 확인할 수 있지만 보유·원가·양도 권한은 검증하지 않는다', () => {
@@ -43,15 +44,21 @@ test('가상 판매자는 시연 매물을 등록하고 확인할 수 있지만 
   assert.equal(review.reservationMade, false); assert.equal(m.listResale().length, 3);
 });
 
-test('시연 매물 등록은 구매가·양도가 불일치, 잘못된 공연·회차·등급, 수량, 검증 주장과 비시연 데이터를 거부한다', () => {
+test('시연 매물 등록은 구매가 초과, 잘못된 공연·회차·등급, 수량, 검증 주장과 비시연 데이터를 거부한다', () => {
   const base = { eventId: 'demo-market-live', showtimeId: 'demo-market-live-s1', seatGrade: 'VIP', originalUnitPrice: 130000, listingUnitPrice: 130000, simulatedQuantityAvailable: 2, deliveryMethod: 'not_specified', isSynthetic: true };
-  for (const update of [{ listingUnitPrice: 130001 }, { listingUnitPrice: 129999 }, { simulatedQuantityAvailable: 0 }, { isSynthetic: false }, { ownershipVerified: true }, { deliveryMethod: 'official_transfer' }]) {
+  for (const update of [{ listingUnitPrice: 130001 }, { simulatedQuantityAvailable: 0 }, { isSynthetic: false }, { ownershipVerified: true }, { deliveryMethod: 'official_transfer' }]) {
     assert.equal(DemoResaleRegistrationSchema.safeParse({ ...base, ...update }).success, false);
     assert.throws(() => market().registerResale({ ...base, ...update }), { code: 'DEMO_INVALID_LISTING' });
   }
   assert.throws(() => market().registerResale({ ...base, eventId: 'PF123456' }), { code: 'DEMO_EVENT_MISMATCH' });
   assert.throws(() => market().registerResale({ ...base, showtimeId: 'other' }), { code: 'DEMO_EVENT_MISMATCH' });
   assert.throws(() => market().registerResale({ ...base, seatGrade: 'other' }), { code: 'DEMO_GRADE_MISMATCH' });
+  const discountedMarket = market();
+  const discounted = discountedMarket.registerResale({ ...base, listingUnitPrice: 129999 });
+  assert.equal(discounted.listingUnitPrice, 129999);
+  assert.equal(discountedMarket.prepareReview({ ...resale, seatGrade: 'VIP', listingId: discounted.id }).unitPrice, 129999);
+  assert.throws(() => market().registerResale({ ...base, originalUnitPrice: 200000, listingUnitPrice: 154001 }), { code: 'DEMO_PRICE_ABOVE_FACE' });
+  assert.equal(market().registerResale({ ...base, originalUnitPrice: 200000, listingUnitPrice: 154000 }).listingUnitPrice, 154000);
 });
 
 test('공연·회차·좌석 불일치와 판매 불가 매물을 거부한다', () => {

@@ -980,3 +980,9 @@ details[open]::details-content { height: auto; }
 
 /* Keep the model below the explanatory copy on phone-sized screens. */
 @media (max-width: 640px) { .phone-three { width: min(320px, 90%); height: min(52svh, 470px); } }
+
+.report-assist { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); }
+.report-assist h3 { margin-top: 0; }
+.report-link-label { display: grid; gap: 8px; font-weight: 600; }
+.report-link-label input { width: 100%; min-height: 48px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); font: inherit; }
+.report-assist .actions { align-items: center; flex-wrap: wrap; }

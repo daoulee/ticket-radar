@@ -1,6 +1,6 @@
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { router, Slot } from 'expo-router';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { createDemoApi } from '../src/api/demoApi';
 import { ApiError } from '../src/api/client';
 import { createDemoMarket, type MarketApi } from '../src/market/api';
@@ -16,6 +16,7 @@ import MoreScreen from '../src/app/(tabs)/more';
 import ShowScreen from '../src/app/show/[id]';
 import ItemScreen from '../src/app/item/[id]';
 import CheckoutScreen from '../src/app/checkout/[id]';
+import DemoBooking from '../src/app/demo-booking';
 import OrderScreen from '../src/app/order/[id]';
 import LoginScreen from '../src/app/login';
 import NotificationsScreen from '../src/app/notifications';
@@ -44,6 +45,7 @@ async function renderMarket(market: MarketApi, initialUrl = '/', store: TokenSto
       'performance-listings/[id]': PerformanceListingsScreen,
       'item/[id]': ItemScreen,
       'checkout/[id]': CheckoutScreen,
+      'demo-booking': DemoBooking,
       'order/[id]': OrderScreen,
       login: LoginScreen,
       notifications: NotificationsScreen,
@@ -69,6 +71,74 @@ async function signup(name = '티켓팬') {
 }
 
 describe('플랫폼(시연 모드)', () => {
+  it('가상 공연에서 대기, 좌석 선택과 시연 결제 완료까지 진행한다', async () => {
+    await renderMarket(createDemoMarket({ latencyMs: 0 }), '/demo-booking');
+    await fireEvent.press(screen.getByRole('button', { name: '레이더 라이브 2026 예매 체험' }));
+    await fireEvent.press(screen.getByRole('button', { name: '대기 건너뛰기' }));
+    expect(screen.getByRole('button', { name: 'A3 좌석 · 선택 불가' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '선택한 좌석 확인하기' })).toBeDisabled();
+    await fireEvent.press(screen.getByRole('button', { name: 'A1 좌석' }));
+    await fireEvent.press(screen.getByRole('button', { name: '선택한 좌석 확인하기' }));
+    expect(screen.getByText('좌석 · VIP석 A1 1매')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '시연 결제 계속하기' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '계좌이체' }));
+    await fireEvent.press(screen.getByRole('button', { name: '154,000원 시연 결제하기' }));
+    expect(await screen.findByText('시연 결제가 완료됐어요', {}, { timeout: 3000 })).toBeOnTheScreen();
+    expect(screen.getByText('계좌이체 · 154,000원')).toBeOnTheScreen();
+  });
+
+  it('공통 테스트 결제는 일회성 코드만 브라우저로 전달한다', async () => {
+    const previous = process.env.EXPO_PUBLIC_SHARED_TOSS_TEST;
+    process.env.EXPO_PUBLIC_SHARED_TOSS_TEST = '1';
+    const base = createDemoMarket({ latencyMs: 0 });
+    const account = await base.signup('payment-buyer', 'Password1!');
+    const store = memoryTokenStore(); await store.save(account.token);
+    const prepareTestPayment = jest.fn().mockResolvedValue({ orderId: 'ord-test-1', providerOrderId: `trtest_${'a'.repeat(32)}`, amount: 99000, mode: 'test' });
+    const issueTestPaymentHandoff = jest.fn().mockResolvedValue({ code: 'x'.repeat(43), expiresInSeconds: 120 });
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    try {
+      await renderMarket({ ...base, mode: 'live', prepareTestPayment, issueTestPaymentHandoff, cancelTestPayment: jest.fn() }, '/', store);
+      await fireEvent.press(await screen.findByLabelText(/\[가상\] 뮤지컬 〈나침반〉, 매물 1개/));
+      await fireEvent.press(await screen.findByLabelText(/^VIP 1매, 99,000원, 정가와 같아요/));
+      await fireEvent.press(await screen.findByRole('button', { name: '구매하기' }));
+      await fireEvent.press(await screen.findByRole('button', { name: '토스 테스트 결제창 열기' }));
+      await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+      const url = String(open.mock.calls[0][0]);
+      expect(url).toBe(`https://ticketradar.month32.workers.dev/mobile-test-payment#code=${'x'.repeat(43)}`);
+      expect(url).not.toContain(account.token);
+    } finally {
+      open.mockRestore();
+      if (previous === undefined) delete process.env.EXPO_PUBLIC_SHARED_TOSS_TEST; else process.env.EXPO_PUBLIC_SHARED_TOSS_TEST = previous;
+    }
+  });
+
+  it('거래 목록 요청이 실패한 뒤 다시 성공하면 이전 오류를 지운다', async () => {
+    const base = createDemoMarket({ latencyMs: 0 });
+    const account = await base.signup('retry-orders', 'Password1!');
+    const store = memoryTokenStore(); await store.save(account.token);
+    const orders = jest.fn(base.orders).mockRejectedValueOnce(new ApiError({ code: 'UNAUTHORIZED', message: '로그인이 필요해요.', retryable: false }));
+    await renderMarket({ ...base, orders }, '/', store);
+    await fireEvent.press(await screen.findByLabelText('내 거래 탭'));
+    expect(await screen.findByText('로그인이 필요해요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('홈 탭'));
+    await fireEvent.press(screen.getByLabelText('내 거래 탭'));
+    expect(await screen.findByText('아직 구매한 티켓이 없어요.')).toBeOnTheScreen();
+    expect(screen.queryByText('로그인이 필요해요.')).not.toBeOnTheScreen();
+  });
+  it('현장 전달 거래의 판매자에게 공식 양도라고 표시하지 않는다', async () => {
+    const market = createDemoMarket({ latencyMs: 0 });
+    const seller = await market.signup('onsite-seller', 'Password1!');
+    const buyer = await market.signup('onsite-buyer', 'Password1!');
+    const { listing } = await market.createListing(seller.token, { showId: 'demo-musical', sessionId: 'demo-mu-1', seatGrade: 'VIP', quantity: 1, pricePerTicket: 99000, originalPricePerTicket: 99000, delivery: 'onsite', bookingType: 'general' });
+    const order = await market.createOrder(buyer.token, listing.id);
+    const store = memoryTokenStore(); await store.save(seller.token);
+    await renderMarket(market, '/', store);
+    await waitFor(() => expect(screen.getByLabelText('내 거래 탭')).toBeOnTheScreen());
+    await act(async () => router.push(`/order/${order.id}`));
+    expect(await screen.findByText('현장 전달로 받아요')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '티켓을 전달했어요' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '공식 양도로 보냈어요' })).not.toBeOnTheScreen();
+  });
   it('실제 공연의 시연 매물을 명시적으로 준비하고 결과를 표시한다', async () => {
     const base = createDemoMarket({ latencyMs: 0 });
     const buyer = await base.signup('demo-kopis-buyer', 'Password1!');
@@ -83,7 +153,7 @@ describe('플랫폼(시연 모드)', () => {
     await fireEvent.press(await screen.findByText(/VIP · 1매 · 시연/));
     await fireEvent.press(await screen.findByRole('button', { name: '구매하기' }));
     expect(await screen.findByText('시연 결제 · 실제 돈이 오가지 않아요')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '결제하기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '시연 결제하기' }));
     await fireEvent.press(await screen.findByRole('button', { name: '티켓 받았어요' }));
     expect(await screen.findByRole('header', { name: '거래가 끝났어요' })).toBeOnTheScreen();
   });
@@ -273,10 +343,19 @@ describe('플랫폼(시연 모드)', () => {
     await fireEvent.press(await screen.findByRole('button', { name: '구매하기' }));
     expect(await screen.findByRole('header', { name: /99,000원을\s*결제할게요/ })).toBeOnTheScreen();
     expect(screen.getByText('시연 결제 · 실제 돈이 오가지 않아요')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '결제하기' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '계좌이체' }));
+    expect(screen.getByRole('radio', { name: '계좌이체', selected: true })).toBeOnTheScreen();
+    expect(screen.getByText('선택은 화면 시연용이며 실제 결제 정보는 입력하지 않아요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '시연 결제하기' }));
     expect(await screen.findByRole('header', { name: /티켓이 도착했는지\s*확인해 주세요/ })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '티켓 받았어요' }));
     expect(await screen.findByRole('header', { name: '거래가 끝났어요' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('뒤로'));
+    await waitFor(() => expect(screen).toHavePathname('/orders'));
+    await fireEvent.press(await screen.findByText('뮤지컬 〈나침반〉 · VIP'));
+    expect(await screen.findByRole('header', { name: '거래가 끝났어요' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('뒤로'));
+    await waitFor(() => expect(screen).toHavePathname('/orders'));
   });
 
   it('판매 등록 3단계: 가격 입력 즉시 정가 비교 → 등록 → 매물 화면', async () => {
@@ -291,7 +370,10 @@ describe('플랫폼(시연 모드)', () => {
     await fireEvent.changeText(screen.getByLabelText('장당 가격'), '155000');
     expect(await screen.findByText('확인된 기준 가격 이하로 입력해 주세요.')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '매물 올리기' })).toBeDisabled();
+    await fireEvent.changeText(screen.getByLabelText('원구매가'), '140000');
     await fireEvent.changeText(screen.getByLabelText('장당 가격'), '150000');
+    expect(screen.getByRole('button', { name: '매물 올리기' })).toBeDisabled();
+    await fireEvent.changeText(screen.getByLabelText('원구매가'), '154000');
     expect(await screen.findByText('정가 154,000원 · 4,000원 저렴해요')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '매물 올리기' }));
     expect(await screen.findByText('150,000원')).toBeOnTheScreen();

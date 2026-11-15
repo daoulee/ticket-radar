@@ -101,10 +101,10 @@ export function Landing({ events, onStart, onRetry, onActiveChange }: Props) {
             <p className="l-eyebrow" data-reveal>예매부터 양도까지</p>
             <h2 id="hero-title" className="l-hero-title">
               <span className="line" data-reveal style={delay(80)}>좋아하는 공연을,</span>
-              <span className="line" data-reveal style={delay(220)}>구매가 그대로 만나는 방법</span>
+              <span className="line" data-reveal style={delay(220)}>구매가 이하로 만나는 방법</span>
             </h2>
             <p className="l-hero-sub" data-reveal style={delay(380)}>
-              예매와 원구매가 양도를 한곳에서 살펴보고, 구매 전 확인할 점도 함께 알아봐요. 현재 화면은 가상 티켓 시연이에요.
+              예매와 원구매가 이하 양도를 한곳에서 살펴보고, 구매 전 확인할 점도 함께 알아봐요. 현재 화면은 가상 티켓 시연이에요.
             </p>
             <div className="l-hero-art" data-reveal style={delay(420)} aria-hidden="true">
               <TicketArt className="l-ticket" />
@@ -134,8 +134,8 @@ export function Landing({ events, onStart, onRetry, onActiveChange }: Props) {
           </article>
           <article className="l-market-option" data-market-progress="card">
             <span className="l-market-number">02</span><p className="l-market-option-label">가상 매물 · 원구매가 정책</p>
-            <h3>원구매가 양도</h3>
-            <p>판매자가 적은 원구매가와 양도가가 같은 매물을 등록하고 살펴볼 수 있어요.</p>
+            <h3>원구매가 이하 양도</h3>
+            <p>판매자가 적은 원구매가 이하의 양도 매물을 등록하고 살펴볼 수 있어요.</p>
           </article>
         </div>
         <p className="l-market-note">예매·매물·좌석은 가상이에요. 공식 판매 권한과 실제 재고는 연결되지 않았어요.</p>
@@ -152,7 +152,7 @@ export function Landing({ events, onStart, onRetry, onActiveChange }: Props) {
           <li data-market-progress="step"><span>03</span><div><strong>결제 직전까지 살펴봐요</strong><p><span className="l-market-mark">시연은 구매 정보 확인에서 끝나요. 실제 결제·예약·티켓 이전은 진행되지 않아요.</span></p></div></li>
         </ol>
         <div className="l-market-seller" data-market-progress="seller">
-          <div><strong>판매자라면 양도 매물도 등록해요</strong><p><span className="l-market-mark">시연에서는 기재한 원구매가와 양도가가 같아야 등록돼요.</span> 구매가의 진위와 티켓 보유 여부는 검증하지 않아요.</p></div>
+          <div><strong>판매자라면 양도 매물도 등록해요</strong><p><span className="l-market-mark">시연에서는 양도가가 기재한 원구매가 이하여야 등록돼요.</span> 구매가의 진위와 티켓 보유 여부는 검증하지 않아요.</p></div>
           <button type="button" className="btn btn-primary" onClick={onStart}>예매·양도 시연하기</button>
         </div>
         <p className="l-market-note">시연 매물은 현재 브라우저에서만 유지되고 새로고침하면 초기화돼요.</p>

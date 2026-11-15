@@ -33,6 +33,7 @@ export interface Listing {
   seatGrade: string;
   quantity: number;
   pricePerTicket: number;
+  originalPricePerTicket?: number; // 판매자 입력, 기존 매물은 미제공
   delivery: Delivery;
   bookingType: BookingType;
   sellerId: string;
@@ -84,6 +85,7 @@ export interface Order {
   status: OrderStatus;
   history: { at: string; status: OrderStatus }[];
   isDemoPayment: true;
+  testPayment?: { provider: 'toss_test'; orderId: string; status: 'pending' | 'confirming' | 'approved' | 'expired' | 'cancelled'; expiresAt: number; paymentKey?: string };
 }
 export interface MarketState {
   shows: Show[];
@@ -155,6 +157,7 @@ export interface CreateListingInput {
   seatGrade: string;
   quantity: number;
   pricePerTicket: number;
+  originalPricePerTicket: number;
   delivery: Delivery;
   bookingType: BookingType;
 }
@@ -250,9 +253,11 @@ export class MarketCore {
     if (s.faceSource?.label === 'KOPIS 안내 기반 시연 기준가') throw new MarketError('DEMO_LISTING_READ_ONLY', '이 공연은 시연 매물만 볼 수 있어요.', 409);
     if (!s.sessions.some((x) => x.id === input.sessionId)) throw new MarketError('BAD_REQUEST', '회차를 선택해 주세요.');
     if (!input.seatGrade?.trim() || input.seatGrade.length > 40) throw new MarketError('BAD_REQUEST', '좌석 등급을 입력해 주세요.');
-    if (!Number.isSafeInteger(input.quantity) || input.quantity < 1 || input.quantity > 4) throw new MarketError('BAD_REQUEST', '매수는 1~4매예요.');
+    if (input.quantity !== 1) throw new MarketError('BAD_REQUEST', '시연 매물은 한 번에 1매만 등록할 수 있어요.');
     if (!Number.isSafeInteger(input.pricePerTicket) || input.pricePerTicket < 1000 || input.pricePerTicket > 10_000_000) throw new MarketError('BAD_REQUEST', '장당 가격을 확인해 주세요.');
     this.assertPriceAllowed(s, input.seatGrade, input.pricePerTicket);
+    if (!Number.isSafeInteger(input.originalPricePerTicket) || input.originalPricePerTicket < 1000 || input.originalPricePerTicket > 10_000_000) throw new MarketError('BAD_REQUEST', '원구매가를 확인해 주세요.');
+    if (input.pricePerTicket > input.originalPricePerTicket) throw new MarketError('PRICE_ABOVE_PURCHASE', '양도가는 입력한 원구매가 이하여야 해요.');
     if (typeof input.delivery !== 'string' || !Object.prototype.hasOwnProperty.call(DELIVERY_TEXT, input.delivery)) throw new MarketError('BAD_REQUEST', '전달 방식을 선택해 주세요.');
     if (!['fanclub_presale', 'general', 'unknown'].includes(input.bookingType)) throw new MarketError('BAD_REQUEST', '예매 유형을 선택해 주세요.');
     // 남용 방지(검토 지적 3): 판매자당 판매 중 20건, 전체 5,000건.
@@ -260,7 +265,7 @@ export class MarketCore {
     if (this.state.listings.length >= 5000) throw new MarketError('LISTING_LIMIT', '지금은 매물을 더 올릴 수 없어요.', 503);
     const listing: Listing = {
       id: this.id('lst'), showId: s.id, sessionId: input.sessionId, seatGrade: input.seatGrade.trim(), quantity: input.quantity,
-      pricePerTicket: input.pricePerTicket, delivery: input.delivery, bookingType: input.bookingType,
+      pricePerTicket: input.pricePerTicket, originalPricePerTicket: input.originalPricePerTicket, delivery: input.delivery, bookingType: input.bookingType,
       sellerId: u.id, sellerName: u.name, createdAt: this.iso(), status: 'active', isDemo: true,
     };
     this.state.listings.push(listing);
@@ -309,20 +314,22 @@ export class MarketCore {
   }
 
   // ── 시연 주문(에스크로 흉내) ──
-  createOrder(userId: string, listingId: string) {
+  createOrder(userId: string, listingId: string, testPayment?: { orderId: string; expiresAt: number }) {
     this.user(userId);
     const { listing, show } = this.getListing(listingId);
     if (listing.status !== 'active') throw new MarketError('LISTING_UNAVAILABLE', '이미 거래 중이거나 판매된 매물이에요.', 409);
     if (listing.sellerId === userId) throw new MarketError('OWN_LISTING', '내 매물은 살 수 없어요.', 409);
     this.assertPriceAllowed(show, listing.seatGrade, listing.pricePerTicket);
+    if (testPayment && (!/^trtest_[a-f0-9]{32}$/.test(testPayment.orderId) || !Number.isSafeInteger(testPayment.expiresAt) || testPayment.expiresAt <= this.now() || testPayment.expiresAt > this.now() + 15 * 60_000 || this.state.orders.some(order => order.testPayment?.orderId === testPayment.orderId))) throw new MarketError('BAD_PAYMENT', '시연 결제 정보를 확인해 주세요.');
     const at = this.iso();
     const order: Order = {
       id: this.id('ord'), listingId, showId: listing.showId, buyerId: userId, sellerId: listing.sellerId,
       amount: listing.pricePerTicket * listing.quantity, status: 'held', history: [{ at, status: 'held' }], isDemoPayment: true,
+      ...(testPayment ? { testPayment: { provider: 'toss_test' as const, orderId: testPayment.orderId, status: 'pending' as const, expiresAt: testPayment.expiresAt } } : {}),
     };
     listing.status = 'reserved';
     // 시연 판매자(demo-*)는 바로 '전달함' 상태로 넘어간다(시연 흐름 진행용).
-    if (listing.sellerId.startsWith('demo-')) { order.status = 'sent'; order.history.push({ at, status: 'sent' }); }
+    if (!testPayment && listing.sellerId.startsWith('demo-')) { order.status = 'sent'; order.history.push({ at, status: 'sent' }); }
     this.state.orders.push(order);
     this.onChange();
     return order;
@@ -347,6 +354,7 @@ export class MarketCore {
   markSent(userId: string, id: string) {
     const o = this.order(userId, id);
     if (o.sellerId !== userId) throw new MarketError('FORBIDDEN', '판매자만 전달 완료를 누를 수 있어요.', 403);
+    if (o.testPayment && o.testPayment.status !== 'approved') throw new MarketError('PAYMENT_PENDING', '테스트 결제 승인 후 전달할 수 있어요.', 409);
     if (o.status !== 'held') throw new MarketError('BAD_STATE', '이미 처리된 거래예요.', 409);
     o.status = 'sent'; o.history.push({ at: this.iso(), status: 'sent' });
     this.onChange();
@@ -355,6 +363,7 @@ export class MarketCore {
   confirmReceived(userId: string, id: string) {
     const o = this.order(userId, id);
     if (o.buyerId !== userId) throw new MarketError('FORBIDDEN', '구매자만 수령 확인을 할 수 있어요.', 403);
+    if (o.testPayment && o.testPayment.status !== 'approved') throw new MarketError('PAYMENT_PENDING', '테스트 결제 승인 후 수령을 확인할 수 있어요.', 409);
     if (o.status !== 'sent') throw new MarketError('BAD_STATE', '판매자가 티켓을 보낸 뒤에 확인할 수 있어요.', 409);
     o.status = 'settled'; o.history.push({ at: this.iso(), status: 'settled' });
     const l = this.state.listings.find((x) => x.id === o.listingId);
@@ -365,13 +374,67 @@ export class MarketCore {
   cancelOrder(userId: string, id: string) {
     const o = this.order(userId, id);
     if (o.status === 'settled' || o.status === 'cancelled') throw new MarketError('BAD_STATE', '취소할 수 없는 거래예요.', 409);
+    if (o.testPayment && o.testPayment.status !== 'pending') throw new MarketError('PAYMENT_RECONCILIATION_REQUIRED', '테스트 결제 상태를 먼저 확인해야 해요.', 409);
     // 티켓을 보낸 뒤에는 구매자가 혼자 취소할 수 없다(검토 지적 1: 티켓을 받고 환불·재판매되는 문제). 판매자는 보낸 뒤에도 취소 가능.
     if (o.status === 'sent' && o.buyerId === userId) throw new MarketError('BAD_STATE', '판매자가 티켓을 보낸 뒤에는 취소할 수 없어요. 문제가 있으면 신고해 주세요.', 409);
     o.status = 'cancelled'; o.history.push({ at: this.iso(), status: 'cancelled' });
+    if (o.testPayment) o.testPayment.status = 'cancelled';
     const l = this.state.listings.find((x) => x.id === o.listingId);
     if (l && l.status === 'reserved') l.status = 'active';
     this.onChange();
     return o;
+  }
+
+  /** Approval attempts are persisted before the network call; retries must use the same payment key. */
+  beginTestPaymentConfirmation(userId: string, id: string, orderId: string, amount: number, paymentKey: string) {
+    const order = this.order(userId, id), payment = order.testPayment;
+    if (order.buyerId !== userId) throw new MarketError('FORBIDDEN', '구매자만 테스트 결제를 승인할 수 있어요.', 403);
+    if (!payment || payment.orderId !== orderId || order.amount !== amount || typeof paymentKey !== 'string' || !paymentKey.trim() || paymentKey.length > 200) throw new MarketError('BAD_PAYMENT', '테스트 결제 정보를 확인해 주세요.');
+    if (order.status === 'cancelled' || payment.status === 'cancelled' || payment.status === 'expired') throw new MarketError('BAD_STATE', '종료된 테스트 결제예요.', 409);
+    if (payment.paymentKey && payment.paymentKey !== paymentKey) throw new MarketError('BAD_PAYMENT', '기존 테스트 결제 정보와 일치하지 않아요.', 409);
+    if (payment.status === 'approved') return order;
+    if (payment.status === 'pending' && payment.expiresAt <= this.now()) throw new MarketError('PAYMENT_EXPIRED', '테스트 결제 시간이 만료됐어요.', 409);
+    payment.paymentKey = paymentKey; payment.status = 'confirming'; this.onChange(); return order;
+  }
+
+  /** Call only after verifying the test provider's order id, key, amount and DONE status. */
+  completeTestPaymentConfirmation(userId: string, id: string, orderId: string, amount: number, paymentKey: string) {
+    const order = this.order(userId, id), payment = order.testPayment;
+    if (order.buyerId !== userId) throw new MarketError('FORBIDDEN', '구매자만 테스트 결제를 승인할 수 있어요.', 403);
+    if (!payment || payment.orderId !== orderId || order.amount !== amount || payment.paymentKey !== paymentKey) throw new MarketError('BAD_PAYMENT', '테스트 결제 정보를 확인해 주세요.');
+    if (payment.status === 'approved') return order;
+    if (payment.status !== 'confirming' || order.status !== 'held') throw new MarketError('BAD_STATE', '테스트 결제 상태를 확인해 주세요.', 409);
+    payment.status = 'approved';
+    if (order.sellerId.startsWith('demo-')) { order.status = 'sent'; order.history.push({ at: this.iso(), status: 'sent' }); }
+    this.onChange(); return order;
+  }
+
+  /** Release an uncertain order only after the provider confirms a terminal non-paid state. */
+  resolveTestPaymentCancellation(userId: string, id: string, orderId: string, amount: number, paymentKey: string) {
+    const order = this.order(userId, id), payment = order.testPayment;
+    if (order.buyerId !== userId) throw new MarketError('FORBIDDEN', '구매자만 테스트 결제 상태를 확인할 수 있어요.', 403);
+    if (!payment || payment.orderId !== orderId || order.amount !== amount || payment.paymentKey !== paymentKey) throw new MarketError('BAD_PAYMENT', '테스트 결제 정보를 확인해 주세요.');
+    if (payment.status === 'cancelled' && order.status === 'cancelled') return order;
+    if (payment.status !== 'confirming' || order.status !== 'held') throw new MarketError('BAD_STATE', '테스트 결제 상태를 확인해 주세요.', 409);
+    payment.status = 'cancelled'; order.status = 'cancelled'; order.history.push({ at: this.iso(), status: 'cancelled' });
+    const listing = this.state.listings.find(item => item.id === order.listingId);
+    if (listing?.status === 'reserved') listing.status = 'active';
+    this.onChange(); return order;
+  }
+
+  /** Only untouched pending authorizations may expire automatically. */
+  expirePendingTestPayments() {
+    let count = 0;
+    for (const order of this.state.orders) {
+      const payment = order.testPayment;
+      if (!payment || payment.status !== 'pending' || payment.expiresAt > this.now() || order.status !== 'held') continue;
+      payment.status = 'expired'; order.status = 'cancelled'; order.history.push({ at: this.iso(), status: 'cancelled' });
+      const listing = this.state.listings.find(item => item.id === order.listingId);
+      if (listing?.status === 'reserved') listing.status = 'active';
+      count++;
+    }
+    if (count) this.onChange();
+    return count;
   }
 }
 

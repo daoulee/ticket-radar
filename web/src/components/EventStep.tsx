@@ -54,7 +54,7 @@ export function EventStep({ events, selectedId, onSearch, onSelect, listPerforma
 
       {listPerformances && <div className="performance-section">
         <h3>현재 공연 중인 공연</h3>
-        <p className="small muted">출처: 공연예술통합전산망(KOPIS) · 조회 기간: 오늘부터 30일 · 최대 30건</p>
+        <p className="small muted">출처: (재)예술경영지원센터 공연예술통합전산망(www.kopis.or.kr) · 조회 기간: 오늘부터 30일 · 최대 30건</p>
         {actual.status === 'loading' && <p className="state" role="status">실제 공연 정보를 불러오는 중이에요.</p>}
         {actual.status === 'error' && <ErrorBox title="실제 공연 목록을 불러오지 못했어요" error={actual.error} onRetry={() => void searchActual(query)} />}
         {actual.status === 'success' && actual.data.length === 0 && <p className="state">조건에 맞는 실제 공연이 없어요. 다른 이름으로 검색해 보세요.</p>}

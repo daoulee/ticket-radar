@@ -29,6 +29,8 @@ const STEPS: { id: Exclude<Step, 'home' | 'market'>; label: string }[] = [
 // 화면 상태만 관리한다. 가격·규정 판단은 API(Sol 서버 또는 표시된 시연 데이터) 응답을 그대로 표시한다.
 export default function App({ api }: { api: TicketRadarApi }) {
   const [step, setStep] = useState<Step>('home')
+  const [sharedMarketOpen, setSharedMarketOpen] = useState(false)
+  const sharedMarketBaseUrl = import.meta.env.VITE_MARKET_API_BASE_URL?.trim()
   const [events, setEvents] = useState<AsyncState<EventSummary[]>>({ status: 'idle' })
   const [event, setEvent] = useState<EventSummary | null>(null)
   const [context, setContext] = useState<AsyncState<OfficialContext>>({ status: 'idle' })
@@ -192,7 +194,10 @@ export default function App({ api }: { api: TicketRadarApi }) {
       {step === 'home' && (
         <Landing events={events} onStart={() => setStep('market')} onRetry={() => searchEvents('')} onActiveChange={setActiveSection} />
       )}
-      {step === 'market' && (import.meta.env.VITE_API_BASE_URL?.trim() ? <ServerMarketplace baseUrl={import.meta.env.VITE_API_BASE_URL.trim()} onSafety={() => setStep('event')} onPerformances={() => setStep('event')} /> : <Marketplace onSafety={() => setStep('event')} onPerformances={() => setStep('event')} />)}
+      {step === 'market' && (sharedMarketBaseUrl ? (sharedMarketOpen
+        ? <ServerMarketplace baseUrl={sharedMarketBaseUrl} onSafety={() => setStep('event')} onPerformances={() => setStep('event')} onDemo={() => setSharedMarketOpen(false)} />
+        : <Marketplace onSafety={() => setStep('event')} onPerformances={() => setStep('event')} onShared={() => setSharedMarketOpen(true)} />)
+        : import.meta.env.VITE_API_BASE_URL?.trim() ? <ServerMarketplace baseUrl={import.meta.env.VITE_API_BASE_URL.trim()} onSafety={() => setStep('event')} onPerformances={() => setStep('event')} /> : <Marketplace onSafety={() => setStep('event')} onPerformances={() => setStep('event')} />)}
       {step !== 'home' && step !== 'market' && (
         <div className="app">
           <button type="button" className="market-return" onClick={() => setStep('market')}>← 티켓 둘러보기</button>

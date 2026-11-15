@@ -38,7 +38,8 @@ export default function SellScreen() {
   const [detail, setDetail] = useState<ShowDetail | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [grade, setGrade] = useState<string | null>(null);
-  const [qty, setQty] = useState('1');
+  const qty = '1';
+  const [originalPrice, setOriginalPrice] = useState('');
   const [booking, setBooking] = useState<BookingType>('general');
   const [delivery, setDelivery] = useState<Delivery>('official_transfer');
   const [price, setPrice] = useState('');
@@ -68,8 +69,9 @@ export default function SellScreen() {
     finally { setPerformanceBusy(false); }
   }
   const amount = Number(price.replace(/[^0-9]/g, ''));
+  const originalAmount = Number(originalPrice);
   const faceLimit = detail?.show.facePrices.find((tier) => tier.seatGrade === grade)?.price;
-  const priceAllowed = !!detail?.show.faceSource && typeof faceLimit === 'number' && faceLimit > 0 && amount >= 1000 && amount <= faceLimit;
+  const priceAllowed = !!detail?.show.faceSource && typeof faceLimit === 'number' && faceLimit > 0 && amount >= 1000 && amount <= faceLimit && originalAmount >= 1000 && originalAmount <= 10_000_000 && amount <= originalAmount;
   useEffect(() => {
     if (!detail || !grade || !amount) return;
     let alive = true;
@@ -99,9 +101,9 @@ export default function SellScreen() {
     setBusy(true);
     setError(null);
     try {
-      const { listing } = await api.createListing(token, { showId: detail.show.id, sessionId, seatGrade: grade, quantity: Number(qty), pricePerTicket: amount, delivery, bookingType: booking });
+      const { listing } = await api.createListing(token, { showId: detail.show.id, sessionId, seatGrade: grade, quantity: 1, pricePerTicket: amount, originalPricePerTicket: originalAmount, delivery, bookingType: booking });
       bump();
-      setStep(1); setDetail(null); setPrice(''); setPreview(null);
+      setStep(1); setDetail(null); setPrice(''); setOriginalPrice(''); setPreview(null);
       router.push(`/item/${encodeURIComponent(listing.id)}?created=1`);
     } catch (e) {
       setError(toApiError(e).message);
@@ -161,7 +163,7 @@ export default function SellScreen() {
             <Label text="좌석 등급" />
             <Chips items={detail.show.facePrices.map((f) => ({ key: f.seatGrade, label: f.seatGrade }))} value={grade ?? ''} onChange={setGrade} />
             <Label text="매수" />
-            <Chips items={['1', '2', '3', '4'].map((q) => ({ key: q, label: `${q}매` }))} value={qty} onChange={setQty} />
+            <Text style={tt.body}>1매 · 시연 매물 한 건당 1매</Text>
             <Label text="예매 유형" />
             <Chips items={BOOKINGS} value={booking} onChange={setBooking} />
             <Label text="전달 방식" />
@@ -174,6 +176,9 @@ export default function SellScreen() {
               <Text style={[tt.body, { color: t.g5 }]}>{detail.show.title.replace('[가상] ', '')} · {grade} {qty}매</Text>
             </View>
             <View style={{ gap: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: t.primary }}>원구매가</Text>
+              <TextInput accessibilityLabel="원구매가" value={originalPrice ? originalAmount.toLocaleString('ko-KR') : ''} onChangeText={(v) => setOriginalPrice(v.replace(/[^0-9]/g, '').slice(0, 8))} keyboardType="number-pad" inputAccessoryViewID={NUMPAD_DONE_ID} placeholder="0원" placeholderTextColor={t.g4} style={{ fontSize: 24, fontWeight: '700', color: t.ink, borderBottomWidth: 1, borderBottomColor: t.g4, paddingVertical: 8 }} />
+              <Text style={tt.desc}>직접 입력한 금액이며 구매 증빙은 확인하지 않아요.</Text>
               <Text style={{ fontSize: 13, fontWeight: '600', color: t.primary }}>장당 가격</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 2, borderBottomColor: t.primary, paddingBottom: 8 }}>
                 <TextInput accessibilityLabel="장당 가격" value={price ? amount.toLocaleString('ko-KR') : ''} onChangeText={(v) => setPrice(v.replace(/[^0-9]/g, '').slice(0, 8))} keyboardType="number-pad" inputAccessoryViewID={NUMPAD_DONE_ID} placeholder="0" placeholderTextColor={t.g4} style={{ flex: 1, fontSize: 28, fontWeight: '700', color: t.ink }} />
@@ -194,7 +199,7 @@ export default function SellScreen() {
                   {preview.attention === 0 ? <Text style={tt.desc}>확인할 점이 없어 구매자가 안심하고 볼 수 있어요</Text> : null}
                 </Appear>
               ) : null}
-              {amount > 0 && !priceAllowed ? <Text style={[tt.desc, { color: t.red }]}>{!detail.show.faceSource || !faceLimit ? '좌석의 기준 가격을 확인할 수 없어 등록할 수 없어요.' : amount < 1000 ? '가격은 1,000원 이상 입력해 주세요.' : '확인된 기준 가격 이하로 입력해 주세요.'}</Text> : null}
+              {amount > 0 && !priceAllowed ? <Text style={[tt.desc, { color: t.red }]}>{!detail.show.faceSource || !faceLimit ? '좌석의 기준 가격을 확인할 수 없어 등록할 수 없어요.' : amount < 1000 ? '가격은 1,000원 이상 입력해 주세요.' : amount > faceLimit ? '확인된 기준 가격 이하로 입력해 주세요.' : '양도가는 입력한 원구매가 이하여야 해요.'}</Text> : null}
             </View>
             {error ? <Text style={[tt.body, { color: t.red }]}>{error}</Text> : null}
           </>

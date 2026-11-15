@@ -23,6 +23,23 @@ function setup(options: Parameters<typeof createDemoApi>[0] = {}) {
   return { api, user }
 }
 
+it('공통 거래를 별도 진입해 기존 예매 시연으로 돌아갈 수 있다', async () => {
+  vi.stubEnv('VITE_MARKET_API_BASE_URL', 'https://shared.example.test')
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json([])))
+  try {
+    const { user } = setup()
+    await user.click(screen.getByRole('button', { name: '바로 체험하기' }))
+    await user.click(screen.getByRole('button', { name: /공통 거래 열기/ }))
+    expect(await screen.findByRole('main', { name: '서버 연결 티켓 거래' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /예매 시연으로/ }))
+    expect(screen.getByRole('button', { name: /공통 거래 열기/ })).toBeInTheDocument()
+    expect(screen.getAllByText('레이더 라이브 2026').length).toBeGreaterThan(0)
+  } finally {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  }
+})
+
 async function pickEvent(user: ReturnType<typeof userEvent.setup>, title: RegExp = /레이더 라이브/) {
   // 새 메인(홈)에서 시작한 뒤 공연을 고른다
   const start = screen.queryByRole('button', { name: /서비스 체험하러 가기/ })
@@ -52,6 +69,22 @@ async function compare(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('티켓레이더 웹 핵심 흐름 (시연 데이터)', () => {
+  it('시연 결과 신고 준비 복사에 시연 경고와 직접 입력 링크가 포함된다', async () => {
+    const { user } = setup()
+    await pickEvent(user)
+    await extractSample(user, '예시 1 · 가격 차이와 캡처 전달')
+    await confirmBasePriceConditions(user)
+    await compare(user)
+    expect(screen.getByText('시연 결과는 실제 신고에 사용하지 마세요.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /공연·스포츠 통합 신고 안내/ })).toHaveAttribute('href', 'https://www.culture.go.kr/singo/')
+    expect(screen.getByRole('link', { name: /공연 분야 신고센터/ })).toHaveAttribute('href', 'https://ent.kocca.kr/ticket/receive.do')
+    await user.type(screen.getByLabelText('판매글 링크 (선택)'), 'https://example.org/listing')
+    await user.click(screen.getByRole('button', { name: '신고 준비 내용 복사' }))
+    const copied = await navigator.clipboard.readText()
+    expect(copied).toContain('시연 데이터 · 실제 신고에 사용하지 마세요')
+    expect(copied).toContain('판매글 링크: https://example.org/listing')
+    expect(copied).toContain('공식 가격:')
+  })
   it('소개에서 예매·양도와 이용 흐름을 안심 확인보다 먼저 보여주고 시연 한계를 밝힌다', () => {
     setup()
     const market = document.getElementById('market-intro')!
@@ -85,7 +118,7 @@ describe('티켓레이더 웹 핵심 흐름 (시연 데이터)', () => {
     expect(await screen.findByText('154,000원')).toBeInTheDocument()
 
     await extractSample(user, '예시 1 · 가격 차이와 캡처 전달')
-    expect(screen.getByLabelText('1매 가격(원)')).toHaveValue(230000)
+    expect(screen.getByLabelText('1매 가격(원)')).toHaveValue('230,000')
     expect(screen.getByLabelText('좌석 등급')).toHaveValue('VIP')
     expect(screen.getAllByText('230,000원', { selector: 'q' }).length).toBeGreaterThan(0)
     // 가격 비교 조건은 자동으로 채우지 않는다
@@ -256,7 +289,7 @@ describe('티켓레이더 웹 핵심 흐름 (시연 데이터)', () => {
     await user.click(within(alert).getByRole('button', { name: 'AI 추출 없이 직접 입력' }))
     expect(screen.getByTestId('extraction-mode')).toHaveTextContent('AI 추출 없음 · 사용자가 직접 입력')
     expect(screen.getAllByText('판매글에서 찾지 못함')).toHaveLength(12)
-    expect(screen.getByLabelText('1매 가격(원)')).toHaveValue(null)
+    expect(screen.getByLabelText('1매 가격(원)')).toHaveValue('')
 
     await user.selectOptions(screen.getByLabelText('좌석 등급'), 'VIP')
     await user.type(screen.getByLabelText('1매 가격(원)'), '230000')
@@ -309,7 +342,7 @@ describe('늦은 검사 응답 무효화', () => {
 
   it('서비스 소개에서 예매·양도 시연으로 이동하고 안심 확인에 진입한다', async () => {
     const { user } = setup()
-    expect(screen.getByRole('heading', { name: /구매가 그대로 만나는 방법/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /구매가 이하로 만나는 방법/ })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '판매글은 보통 이렇게 생겼어요' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '결정은 당신이, 근거는 저희가' })).toBeInTheDocument()
     expect(screen.getByText('진짜 티켓인지 인증하지 않아요.')).toBeInTheDocument()
@@ -319,7 +352,7 @@ describe('늦은 검사 응답 무효화', () => {
     expect(screen.getByText('외 1개 공연은 다음 단계에서 고를 수 있어요.')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '1. 공연 선택' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /서비스 체험하러 가기/ }))
-    expect(screen.getByRole('heading', { name: /구매가 그대로 만나요/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /구매가 이하로 만나요/ })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /판매글 안심 확인/ }))
     expect(screen.getByRole('heading', { name: '1. 공연 선택' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: '진행 단계' })).toBeInTheDocument()

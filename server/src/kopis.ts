@@ -61,9 +61,23 @@ export async function searchKopis(apiKey: string, query: string, options: { now?
   const params: Record<string, string> = { service: apiKey, stdate: today.replaceAll('-', ''), eddate: end.toISOString().slice(0, 10).replaceAll('-', ''), cpage: '1', rows: '30', prfstate: '02' };
   if (normalizedQuery) params.shprfnm = normalizedQuery;
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-  let response: Response;
-  try { response = await (options.fetch ?? fetch)(url, { signal: AbortSignal.timeout(10_000), redirect: 'manual' }); }
-  catch (error) { console.warn('KOPIS upstream connection failed:', error instanceof Error ? error.name : 'unknown'); throw new ApiError('KOPIS_UNAVAILABLE', '공연정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 502, true); }
-  if (!response.ok) { console.warn('KOPIS upstream HTTP status:', response.status); throw new ApiError('KOPIS_UNAVAILABLE', '공연정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 502, true); }
-  return parseKopisList(await response.text(), now.toISOString());
+  // 한 번의 일시적 연결 오류나 upstream 5xx만 재시도한다. 두 번 합쳐 최대 12초로 웹의 15초 제한보다 짧다.
+  // 리디렉션과 인증·요청 오류를 우회하거나 실패 결과를 가상 데이터로 대체하지 않는다.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let response: Response;
+    try { response = await (options.fetch ?? fetch)(url, { signal: AbortSignal.timeout(6_000), redirect: 'manual' }); }
+    catch (error) {
+      console.warn('KOPIS upstream connection failed:', error instanceof Error ? error.name : 'unknown');
+      if (attempt === 0) continue;
+      throw new ApiError('KOPIS_UNAVAILABLE', '공연정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 502, true);
+    }
+    if (response.ok) return parseKopisList(await response.text(), now.toISOString());
+    console.warn('KOPIS upstream HTTP status:', response.status);
+    if (attempt === 0 && [500, 502, 503, 504].includes(response.status)) {
+      await response.body?.cancel().catch(() => undefined);
+      continue;
+    }
+    throw new ApiError('KOPIS_UNAVAILABLE', '공연정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 502, true);
+  }
+  throw new ApiError('KOPIS_UNAVAILABLE', '공연정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 502, true);
 }

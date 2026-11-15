@@ -14,3 +14,8 @@ dependencies:
     - vercel-labs/agent-skills/skills/web-design-guidelines#main
     - github/awesome-copilot/skills/javascript-typescript-jest#main
     - vercel-labs/agent-skills/skills/react-best-practices#main
+    - callstack/react-native-testing-library/skills/react-native-testing#main
+    - callstackincubator/agent-skills/skills/react-native-best-practices#main
+    - addyosmani/agent-skills/skills/debugging-and-error-recovery#main
+    - addyosmani/agent-skills/skills/ci-cd-and-automation#main
+    - addyosmani/agent-skills/skills/code-review-and-quality#main

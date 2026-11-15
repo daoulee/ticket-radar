@@ -7,6 +7,7 @@ import { CheckService } from '../src/service.ts';
 import { MarketService } from '../src/market.ts';
 import { EmailVerification } from '../src/email-verification.ts';
 import { LoginGuard } from '../src/login-guard.ts';
+import { RequestLimiter } from '../src/request-limit.ts';
 
 // WEB-020 보안 보완: 인증 메일 일일 상한, 계정별 로그인 실패 잠금.
 
@@ -66,4 +67,52 @@ test('HTTP: account lockout after repeated wrong passwords; correct password wor
     now += 15 * 60_000;
     assert.equal((await call('/auth/login', { email: 'lock@example.org', password: 'Lock-pass-1!' })).status, 200);
   } finally { server.close(); }
+});
+
+test('login lockouts persist across restarts without storing identifiers', () => {
+  let saved: string | null = null; let now = 1_000;
+  const store = { load: () => saved, save: (value: string) => { saved = value; } };
+  const key = LoginGuard.keyOf({ email: 'private@example.test' });
+  for (let i = 0; i < 5; i++) new LoginGuard(5, 900_000, 900_000, () => now, 10_000, store).fail(key);
+  assert.ok(!String(saved).includes('private@example.test'));
+  assert.throws(() => new LoginGuard(5, 900_000, 900_000, () => now, 10_000, store).check(key), { code: 'LOGIN_LOCKED' });
+  now += 900_000;
+  new LoginGuard(5, 900_000, 900_000, () => now, 10_000, store).check(key);
+});
+
+test('login guard fails closed and rolls back on storage failures', () => {
+  let saved: string | null = null; let fail = false;
+  const store = { load: () => saved, save: (value: string) => { if (fail) throw new Error('unavailable'); saved = value; } };
+  const guard = new LoginGuard(2, 900_000, 900_000, Date.now, 10_000, store);
+  const key = LoginGuard.keyOf({ name: 'testuser' });
+  guard.fail(key); fail = true;
+  assert.throws(() => guard.fail(key), { code: 'LOGIN_STORE_ERROR' });
+  guard.check(key);
+  fail = false; guard.fail(key);
+  assert.throws(() => guard.check(key), { code: 'LOGIN_LOCKED' });
+  assert.throws(() => new LoginGuard(5, 900_000, 900_000, Date.now, 10_000, { load: () => '{}', save: () => {} }), { code: 'LOGIN_STORE_ERROR' });
+});
+
+test('request limits survive restart, isolate callers and expire without storing addresses', () => {
+  let saved: string | null = null; let now = 1000;
+  const store = { load: () => saved, save: (value: string) => { saved = value; } };
+  new RequestLimiter(() => now, store).consume('login:192.0.2.3', 2);
+  new RequestLimiter(() => now, store).consume('login:192.0.2.3', 2);
+  assert.ok(!String(saved).includes('192.0.2.3'));
+  const afterRestart = new RequestLimiter(() => now, store);
+  assert.throws(() => afterRestart.consume('login:192.0.2.3', 2), { code: 'RATE_LIMITED' });
+  afterRestart.consume('login:192.0.2.4', 2);
+  now += 60_000;
+  new RequestLimiter(() => now, store).consume('login:192.0.2.3', 2);
+});
+
+test('request limits fail closed on storage errors and reject corrupted state', () => {
+  let saved: string | null = null; let fail = false;
+  const store = { load: () => saved, save: (value: string) => { if (fail) throw new Error('unavailable'); saved = value; } };
+  const limiter = new RequestLimiter(() => 1000, store);
+  limiter.consume('email:ip', 2); fail = true;
+  assert.throws(() => limiter.consume('email:ip', 2), { code: 'RATE_STORE_ERROR' });
+  fail = false; limiter.consume('email:ip', 2);
+  assert.throws(() => limiter.consume('email:ip', 2), { code: 'RATE_LIMITED' });
+  assert.throws(() => new RequestLimiter(Date.now, { load: () => '{}', save: () => {} }), { code: 'RATE_STORE_ERROR' });
 });

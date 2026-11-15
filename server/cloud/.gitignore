@@ -1,0 +1,3 @@
+catalog.generated.ts
+.dev.vars*
+.wrangler/

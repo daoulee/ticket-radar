@@ -1,0 +1,26 @@
+import { expect, test } from '@playwright/test'
+
+test('앱에 등록된 시연 매물을 웹에서 구매하고 전달 후 수령한다', async ({ page }) => {
+  test.skip(process.env.AID_INTERACTIVE_TRADE !== '1', '격리 서버와 D2 판매자 조작이 필요한 수동 연계 테스트')
+  test.setTimeout(180_000)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('http://127.0.0.1:5173/')
+  await page.getByRole('button', { name: '바로 체험하기' }).click()
+  await page.getByLabel('아이디 또는 이메일').fill('webbuyer')
+  await page.getByLabel('비밀번호').fill('Buyer-pass-1!')
+  await page.getByRole('button', { name: '로그인', exact: true }).click()
+  await expect(page.getByRole('button', { name: '내 거래' })).toBeVisible()
+  await page.getByRole('button', { name: /\[가상\] 뮤지컬/ }).click()
+  const listing = page.locator('.market-item').filter({ hasText: 'VIP · 1매' }).filter({ hasText: '99,000원' }).last()
+  await expect(listing).toBeVisible()
+  await listing.getByRole('button', { name: '시연 구매하기' }).click()
+  await expect(page.getByText('전달 대기')).toBeVisible()
+  console.log('WEB_ORDER_HELD: waiting for seller on D2')
+  await expect(async () => {
+    await page.getByRole('button', { name: '내 거래' }).click()
+    await expect(page.getByRole('button', { name: '티켓 받았어요' })).toBeVisible({ timeout: 1000 })
+  }).toPass({ timeout: 120_000, intervals: [3000] })
+  await page.getByRole('button', { name: '티켓 받았어요' }).click()
+  await expect(page.getByText('거래 완료')).toBeVisible()
+  console.log('WEB_SETTLED: buyer confirmed on web')
+})

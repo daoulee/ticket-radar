@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, Text, View, type ImageSourcePropType, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { Category } from '../market/engine';
@@ -18,6 +18,11 @@ const PALETTES: [string, string][] = [
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 export const tempImageUrl = (id: string, px: number) => `https://picsum.photos/seed/${encodeURIComponent(id)}/${px}/${px}`;
 const GLYPH: Record<Category, string> = { concert: '♪', musical: '✦', sports: '⚾︎' };
+// 웹과 공유하는 가상 공연 아트. 실제 KOPIS 포스터가 있는 경우 제공된 URL을 우선한다.
+const DEMO_POSTERS: Record<string, ImageSourcePropType> = {
+  'demo-radar-live': require('../../assets/demo/radar-live.jpg'),
+  'demo-musical': require('../../assets/demo/compass.jpg'),
+};
 
 export function ShowArt({
   id,
@@ -46,7 +51,7 @@ export function ShowArt({
   const [c1, c2] = PALETTES[hash(id) % PALETTES.length];
   const [ok, setOk] = useState(true);
   const px = Math.min(800, Math.round(Math.max(w, h) * 2 / 50) * 50 || 100);
-  const image = imageUrl === undefined ? tempImageUrl(id, px) : imageUrl;
+  const image = imageUrl ? { uri: imageUrl } : DEMO_POSTERS[id] ?? (imageUrl === undefined ? { uri: tempImageUrl(id, px) } : null);
   return (
     <View accessible={false} style={[{ width: w, height: h, borderRadius: r, overflow: 'hidden', backgroundColor: c1 }, style]}>
       <Svg width={w} height={h} style={{ position: 'absolute' }}>
@@ -63,7 +68,7 @@ export function ShowArt({
       </View>
       {ok && image ? (
         <Animated.View entering={FadeIn.duration(260).reduceMotion(ReduceMotion.System)} style={{ position: 'absolute', inset: 0 }}>
-          <Image source={{ uri: image }} onError={() => setOk(false)} style={{ width: w, height: h }} resizeMode="cover" accessibilityIgnoresInvertColors />
+          <Image source={image} onError={() => setOk(false)} style={{ width: w, height: h }} resizeMode="cover" accessibilityIgnoresInvertColors />
         </Animated.View>
       ) : null}
     </View>

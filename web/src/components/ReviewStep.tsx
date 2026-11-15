@@ -19,6 +19,7 @@ import {
   showtimeText,
 } from '../ui/format'
 import { DemoBadge, ListingQuote } from './common'
+import { MoneyInput } from './MoneyInput'
 import './review-redesign.css'
 
 // 3단계 화면의 입력 출처. 서버 추출 응답이거나, 사용자가 명시적으로 고른 직접 입력이다.
@@ -116,8 +117,8 @@ export function ReviewStep({ event, context, source, fields, submitting, onChang
         </FieldRow>
 
         <FieldRow label="1매 가격(원)" {...row('price')} display={(v) => formatWon(Number(v))}>
-          <input id="f-price" type="number" inputMode="numeric" min={0} step={1000} value={fields.price ?? ''} placeholder="확인 불가"
-            onChange={(e) => set('price', toIntOrNull(e.target.value, 0))} />
+          <MoneyInput id="f-price" minAmount={0} value={fields.price === null ? '' : String(fields.price)} placeholder="확인 불가"
+            onValueChange={(value) => set('price', toIntOrNull(value, 0))} />
         </FieldRow>
 
         <FieldRow label="매수" {...row('quantity')} display={(v) => `${v}장`}>

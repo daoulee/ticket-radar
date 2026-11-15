@@ -27,3 +27,31 @@ describe('KOPIS 공연 목록 어댑터', () => {
     await assert.rejects(searchKopis('dummy', '공연', { fetch: async (_input, init) => { assert.equal(init?.redirect, 'manual'); return new Response(null, { status: 302, headers: { Location: 'https://other.example/' } }); } }), { code: 'KOPIS_UNAVAILABLE' });
   });
 });
+
+it('빈 검색에서 일시적인 5xx 또는 연결 실패 후 실제 응답만 한 번 재시도한다', async () => {
+  for (const failure of ['status', 'network'] as const) {
+    let attempts = 0;
+    const result = await searchKopis('dummy', '', { now: new Date('2026-11-12T00:00:00Z'), fetch: async (input, init) => {
+      const url = new URL(String(input));
+      assert.equal(url.searchParams.has('shprfnm'), false);
+      assert.equal(init?.redirect, 'manual');
+      if (++attempts === 1) {
+        if (failure === 'network') throw new Error('transient');
+        return new Response('temporary', { status: 503 });
+      }
+      return new Response(xml);
+    } });
+    assert.equal(attempts, 2); assert.equal(result[0].id, 'PF123');
+  }
+});
+
+it('반복 실패는 오류로 남기고 리디렉션·요청 제한을 재시도하지 않는다', async () => {
+  let tries = 0;
+  await assert.rejects(searchKopis('dummy', '', { fetch: async () => { tries++; return new Response('failure', { status: 503 }); } }), { code: 'KOPIS_UNAVAILABLE' });
+  assert.equal(tries, 2);
+  for (const status of [302, 400, 429]) {
+    tries = 0;
+    await assert.rejects(searchKopis('dummy', '', { fetch: async () => { tries++; return new Response(null, { status }); } }), { code: 'KOPIS_UNAVAILABLE' });
+    assert.equal(tries, 1);
+  }
+});

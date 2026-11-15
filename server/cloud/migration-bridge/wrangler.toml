@@ -1,0 +1,10 @@
+name = "ticketradar-migration-bridge-local"
+main = "worker.ts"
+compatibility_date = "2026-11-02"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+[[services]]
+binding = "MIGRATION"
+service = "ticketradar-shared-staging"
+entrypoint = "MigrationControl"
+remote = true

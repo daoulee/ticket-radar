@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { CheckResponse, EventSummary, Finding, ListingFields } from '../contract/types'
 import {
   BOOKING_LABELS,
@@ -27,6 +28,8 @@ interface Props {
 }
 
 export function ResultStep({ event, result, currentFields, submitting, onRecheck, onEdit, onRestart }: Props) {
+  const [reportLink, setReportLink] = useState('')
+  const [copyStatus, setCopyStatus] = useState('')
   // 수정 후 다시 대조하지 않은 결과는 이전 값 기준임을 분명히 표시한다 (SPEC T05).
   const stale = !result.appliedFields || !sameListingFields(result.appliedFields, currentFields)
   const comparison = result.priceComparison
@@ -35,6 +38,24 @@ export function ResultStep({ event, result, currentFields, submitting, onRecheck
   const syntheticSource = result.provenance.officialSourceType === 'synthetic'
   const label = <T extends string>(labels: Record<T, string>, v: T | null) => (v ? labels[v] : '확인 불가')
   const yn = (v: boolean | null, yes: string, no: string) => (v === null ? '확인 불가' : v ? yes : no)
+  const copyReport = async () => {
+    const fields = result.appliedFields
+    const summary = [
+      result.isDemo ? '[시연 데이터 · 실제 신고에 사용하지 마세요]' : '[신고 전 직접 확인할 내용]',
+      `공연명: ${event.title}`,
+      `공연일시: ${showtimeLabel(fields?.showtimeId ?? null)}`,
+      `공식 가격: ${comparison.held ? '확인 불가' : formatWon(comparison.facePrice)}`,
+      `판매가(1매): ${fields?.price != null ? formatWon(fields.price) : '확인 불가'}`,
+      `수량: ${fields?.quantity != null ? `${fields.quantity}매` : '확인 불가'}`,
+      `판매글 링크: ${reportLink.trim() || '직접 입력 필요'}`,
+    ].join('\n')
+    try {
+      await navigator.clipboard.writeText(summary)
+      setCopyStatus('신고 준비 내용을 복사했어요. 제출 전에 직접 확인해 주세요.')
+    } catch {
+      setCopyStatus('복사하지 못했어요. 브라우저의 클립보드 권한을 확인해 주세요.')
+    }
+  }
 
   return (
     <section className="card" aria-labelledby="result-step-title">
@@ -130,6 +151,25 @@ export function ResultStep({ event, result, currentFields, submitting, onRecheck
         이 결과는 판매글 문구와 등록된 공식 안내를 비교해 확인할 점을 보여줄 뿐입니다. 티켓의 진위나 입장 가능 여부를 판단하지
         않으며, 판매자나 거래의 위법성을 판정하지 않습니다. 구매 전 공식 예매처에 직접 확인하세요.
       </p>
+
+      <section className="report-assist" aria-labelledby="report-assist-title">
+        <h3 id="report-assist-title">신고 전 내용 정리</h3>
+        <p className="small">확인한 사실을 직접 검토한 뒤 해당 기관에 신고해 주세요. 티켓레이더가 신고를 제출하지는 않아요.</p>
+        {result.isDemo && <p className="state state-warn small">시연 결과는 실제 신고에 사용하지 마세요.</p>}
+        {stale && <p className="state state-warn small">수정한 값을 다시 대조한 후 복사할 수 있어요.</p>}
+        <label className="report-link-label">판매글 링크 (선택)
+          <input type="url" value={reportLink} onChange={(e) => { setReportLink(e.target.value); setCopyStatus('') }} placeholder="https://" />
+        </label>
+        <div className="actions">
+          <button type="button" className="btn btn-secondary" onClick={copyReport} disabled={stale}>신고 준비 내용 복사</button>
+          <button type="button" className="btn btn-secondary" onClick={() => window.print()}>인쇄·PDF 저장</button>
+          <a href="https://www.culture.go.kr/singo/" target="_blank" rel="noopener noreferrer">공연·스포츠 통합 신고 안내 ↗</a>
+          <a href="https://ent.kocca.kr/ticket/receive.do" target="_blank" rel="noopener noreferrer">공연 분야 신고센터 ↗</a>
+          <a href="https://cleanpass.kspo.or.kr" target="_blank" rel="noopener noreferrer">스포츠 분야 신고센터 ↗</a>
+        </div>
+        <p className="small muted">신고 조건과 제출 후 변경 가능 여부는 각 신고센터에서 확인해 주세요. 복사한 내용에 개인정보가 없는지 살펴보세요.</p>
+        {copyStatus && <p role="status" className="small">{copyStatus}</p>}
+      </section>
 
       <div className="actions">
         <button type="button" className="btn btn-secondary" onClick={onEdit}>추출값 수정</button>

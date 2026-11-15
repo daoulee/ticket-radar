@@ -27,7 +27,7 @@ const resaleCore = {
   simulatedQuantityAvailable: quantity, deliveryMethod: z.enum(['not_specified', 'other']), isSynthetic: z.literal(true),
 };
 export const DemoResaleRegistrationSchema = z.strictObject(resaleCore).superRefine((listing, ctx) => {
-  if (listing.originalUnitPrice !== listing.listingUnitPrice) ctx.addIssue({ code: 'custom', path: ['listingUnitPrice'], message: '시연 양도가격은 시연 구매가와 같아야 합니다.' });
+  if (listing.listingUnitPrice > listing.originalUnitPrice) ctx.addIssue({ code: 'custom', path: ['listingUnitPrice'], message: '시연 양도가격은 시연 구매가 이하여야 합니다.' });
 });
 export const DemoResaleListingSchema = z.strictObject({
   id, eventId: id, showtimeId: id, seatGrade: id, originalUnitPrice: won, listingUnitPrice: won,
@@ -35,7 +35,7 @@ export const DemoResaleListingSchema = z.strictObject({
   ownershipVerified: z.literal(false), originalPriceVerified: z.literal(false), transferEligibilityVerified: z.literal(false),
   status: z.enum(['available', 'unavailable']), isSynthetic: z.literal(true),
 }).superRefine((listing, ctx) => {
-  if (listing.originalUnitPrice !== listing.listingUnitPrice) ctx.addIssue({ code: 'custom', path: ['listingUnitPrice'], message: '시연 양도가격은 시연 구매가와 같아야 합니다.' });
+  if (listing.listingUnitPrice > listing.originalUnitPrice) ctx.addIssue({ code: 'custom', path: ['listingUnitPrice'], message: '시연 양도가격은 시연 구매가 이하여야 합니다.' });
 });
 
 export const DemoPurchaseRequestSchema = z.discriminatedUnion('source', [

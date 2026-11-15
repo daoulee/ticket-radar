@@ -8,6 +8,9 @@ import { parseReportRequest, ReportService } from './reports.ts';
 import { handleMarket, MarketService } from './market.ts';
 import { EmailVerification, verificationSenderFromEnv } from './email-verification.ts';
 import { LoginGuard } from './login-guard.ts';
+import { RequestLimiter } from './request-limit.ts';
+import type { SharedTestPayment } from './shared-test-payment.ts';
+import type { TestPaymentHandoffs } from './test-payment-handoff.ts';
 
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 // 호출 제한용 클라이언트 주소(TODO 검토 ⑥). 기본은 소켓 주소. TRUST_PROXY=1 일 때만(신뢰하는 프록시·터널 뒤) X-Forwarded-For 첫 주소를 쓴다.
@@ -37,8 +40,8 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   catch { throw new ApiError('INVALID_JSON', 'JSON 요청을 읽지 못했습니다.'); }
 }
 
-export function createApi(service: CheckService, origins = DEFAULT_ORIGINS, kopisSearch: (query: string) => Promise<KopisPerformance[]> = query => searchKopis(process.env.KOPIS_API_KEY ?? '', query), reports = new ReportService(), market = new MarketService(), verification = new EmailVerification(verificationSenderFromEnv(process.env), Date.now, { dailyTotal: Number(process.env.EMAIL_DAILY_LIMIT) || undefined }), loginGuard = new LoginGuard(), kopisDetail = (id: string) => fetchKopisDetail(process.env.KOPIS_API_KEY ?? '', id)) {
-  const limits = new Map<string, { count: number; until: number }>();
+export function createApi(service: CheckService, origins = DEFAULT_ORIGINS, kopisSearch: (query: string) => Promise<KopisPerformance[]> = query => searchKopis(process.env.KOPIS_API_KEY ?? '', query), reports = new ReportService(), market = new MarketService(), verification = new EmailVerification(verificationSenderFromEnv(process.env), Date.now, { dailyTotal: Number(process.env.EMAIL_DAILY_LIMIT) || undefined }), loginGuard = new LoginGuard(), kopisDetail = (id: string) => fetchKopisDetail(process.env.KOPIS_API_KEY ?? '', id), resolveClientIp: (req: IncomingMessage) => string = clientIp, requestLimiter = new RequestLimiter(), kopisCards = (options: { category?: 'concert' | 'musical'; page?: number }) => searchKopisCards(process.env.KOPIS_API_KEY ?? '', options), testPayment: SharedTestPayment | null = null, handoffs: TestPaymentHandoffs | null = null) {
+  const limited = (key: string, max: number, windowMs = 60_000) => requestLimiter.consume(key, max, windowMs);
   const server = createServer(async (req, res) => {
     res.setHeader('Vary', 'Origin');
     try {
@@ -58,47 +61,28 @@ export function createApi(service: CheckService, origins = DEFAULT_ORIGINS, kopi
         send(res, 200, EventListSchema.parse(service.entries.filter(e => [e.event.title, ...e.aliases].some(t => t.toLocaleLowerCase().includes(query))).map(e => e.event))); return;
       }
       if (req.method === 'GET' && url.pathname === '/performance-cards') {
-        const now = Date.now();
-        for (const [key, val] of limits) if (val.until <= now) limits.delete(key);
-        const ip = `performance-cards:${clientIp(req)}`;
-        const limit = limits.get(ip) ?? { count: 0, until: now + 60_000 };
-        limit.count++; limits.set(ip, limit);
-        if (limit.count > 30) throw new ApiError('RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 재시도하세요.', 429, true);
+        limited(`performance-cards:${resolveClientIp(req)}`, 30);
         const category = url.searchParams.get('category');
         if (category !== null && category !== 'concert' && category !== 'musical') throw new ApiError('BAD_REQUEST', '공연 분류를 확인해 주세요.');
         const rawPage = url.searchParams.get('page') ?? '1';
         if (!/^[1-9]\d{0,2}$/.test(rawPage)) throw new ApiError('BAD_REQUEST', '공연 목록 페이지를 확인해 주세요.');
-        send(res, 200, await searchKopisCards(process.env.KOPIS_API_KEY ?? '', { category: category ?? undefined, page: Number(rawPage) })); return;
+        send(res, 200, await kopisCards({ category: category ?? undefined, page: Number(rawPage) })); return;
       }
       const performanceDetail = url.pathname.match(/^\/performance-cards\/(PF\d{1,12})$/);
       const prepareDemo = url.pathname.match(/^\/performance-cards\/(PF\d{1,12})\/demo-market$/);
       if (req.method === 'POST' && prepareDemo) {
         market.userOf(req);
         if (prepareDemo[1] !== 'PF305681') throw new ApiError('DEMO_NOT_AVAILABLE', '이 공연의 시연은 아직 준비되지 않았어요.', 409);
-        const now = Date.now(), ip = `kopis-demo:${clientIp(req)}`;
-        const limit = limits.get(ip) ?? { count: 0, until: now + 60_000 };
-        if (limit.until <= now) { limit.count = 0; limit.until = now + 60_000; }
-        if (++limit.count > 10) throw new ApiError('RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 재시도하세요.', 429, true);
-        limits.set(ip, limit);
+        limited(`kopis-demo:${resolveClientIp(req)}`, 10);
         const detail = await kopisDetail(prepareDemo[1]);
         send(res, 200, market.tx(() => market.prepareKopisDemo(detail))); return;
       }
       if (req.method === 'GET' && performanceDetail) {
-        const now = Date.now();
-        for (const [key, val] of limits) if (val.until <= now) limits.delete(key);
-        const ip = `performance-detail:${clientIp(req)}`;
-        const limit = limits.get(ip) ?? { count: 0, until: now + 60_000 };
-        limit.count++; limits.set(ip, limit);
-        if (limit.count > 30) throw new ApiError('RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 재시도하세요.', 429, true);
-        send(res, 200, await fetchKopisDetail(process.env.KOPIS_API_KEY ?? '', performanceDetail[1])); return;
+        limited(`performance-detail:${resolveClientIp(req)}`, 30);
+        send(res, 200, await kopisDetail(performanceDetail[1])); return;
       }
       if (req.method === 'GET' && url.pathname === '/performances') {
-        const now = Date.now();
-        for (const [key, val] of limits) if (val.until <= now) limits.delete(key);
-        const ip = `performances:${clientIp(req)}`;
-        const limit = limits.get(ip) ?? { count: 0, until: now + 60_000 };
-        limit.count++; limits.set(ip, limit);
-        if (limit.count > 30) throw new ApiError('RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 재시도하세요.', 429, true);
+        limited(`performances:${resolveClientIp(req)}`, 30);
         const query = (url.searchParams.get('q') ?? '').trim();
         send(res, 200, await kopisSearch(query)); return;
       }
@@ -111,23 +95,72 @@ export function createApi(service: CheckService, origins = DEFAULT_ORIGINS, kopi
         send(res, 200, OfficialContextSchema.parse(entry.context)); return;
       }
       if (req.method === 'POST' && url.pathname === '/checks') {
-        const now = Date.now();
-        for (const [key, val] of limits) if (val.until <= now) limits.delete(key);
-        const ip = clientIp(req);
-        const limit = limits.get(ip) ?? { count: 0, until: now + 60_000 };
-        limit.count++; limits.set(ip, limit);
-        if (limit.count > 30) throw new ApiError('RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 재시도하세요.', 429, true);
+        limited(resolveClientIp(req), 30);
         send(res, 200, await service.check(await readJson(req))); return;
       }
       // 제보·주최 측 제보함(APP-021, reports.ts). 호출량 제한은 위와 같은 IP별 1분 창을 쓴다.
-      const limited = (key: string, max: number, windowMs = 60_000) => {
-        const now = Date.now();
-        for (const [k, v] of limits) if (v.until <= now) limits.delete(k);
-        const l = limits.get(key) ?? { count: 0, until: now + windowMs };
-        l.count++; limits.set(key, l);
-        if (l.count > max) throw new ApiError('RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 재시도하세요.', 429, true);
-      };
-      const ip = clientIp(req);
+      const ip = resolveClientIp(req);
+      if (url.pathname.startsWith('/test-payments/')) {
+        limited(`test-payment:${ip}`, 20);
+        if (!testPayment) throw new ApiError('TEST_PAYMENT_NOT_CONFIGURED', '테스트 결제 연결을 준비 중이에요.', 503, true);
+        if (req.method === 'POST' && url.pathname === '/test-payments/mobile-exchange') {
+          if (!handoffs) throw new ApiError('TEST_PAYMENT_NOT_CONFIGURED', '모바일 테스트 결제를 준비 중이에요.', 503, true);
+          const body = await readJson(req) as Record<string, unknown>;
+          if (!body || Object.keys(body).some(key => key !== 'code')) throw new ApiError('BAD_PAYMENT', '결제 연결 정보를 확인해 주세요.');
+          send(res, 200, handoffs.exchange(body.code)); return;
+        }
+        if (url.pathname.startsWith('/test-payments/mobile-')) {
+          if (!handoffs) throw new ApiError('TEST_PAYMENT_NOT_CONFIGURED', '모바일 테스트 결제를 준비 중이에요.', 503, true);
+          const auth = req.headers.authorization ?? '';
+          const grant = handoffs.authorize(auth.startsWith('Bearer ') ? auth.slice(7).trim() : '');
+          if (req.method === 'GET' && url.pathname === '/test-payments/mobile-config') { send(res, 200, testPayment.config()); return; }
+          if (req.method === 'POST' && url.pathname === '/test-payments/mobile-confirm') {
+            const body = await readJson(req) as Record<string, unknown>;
+            if (!body || Object.keys(body).some(key => !['providerOrderId', 'amount', 'paymentKey'].includes(key)) || typeof body.providerOrderId !== 'string' || typeof body.amount !== 'number' || typeof body.paymentKey !== 'string') throw new ApiError('BAD_PAYMENT', '테스트 결제 정보를 확인해 주세요.');
+            send(res, 200, await testPayment.confirm(grant.userId, grant.orderId, body.providerOrderId, body.amount, body.paymentKey)); return;
+          }
+          if (req.method === 'POST' && url.pathname === '/test-payments/mobile-cancel') {
+            const body = await readJson(req);
+            if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 0) throw new ApiError('BAD_PAYMENT', '취소 요청을 확인해 주세요.');
+            send(res, 200, testPayment.cancelPending(grant.userId, grant.orderId)); return;
+          }
+          if (req.method === 'POST' && url.pathname === '/test-payments/mobile-reconcile') {
+            const body = await readJson(req);
+            if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 0) throw new ApiError('BAD_PAYMENT', '결제 상태 요청을 확인해 주세요.');
+            send(res, 200, await testPayment.reconcile(grant.userId, grant.orderId)); return;
+          }
+          throw new ApiError('NOT_FOUND', '요청 경로를 찾을 수 없습니다.', 404);
+        }
+        const user = market.userOf(req)!;
+        if (req.method === 'GET' && url.pathname === '/test-payments/config') { send(res, 200, testPayment.config()); return; }
+        if (req.method === 'POST' && url.pathname === '/test-payments/prepare') {
+          const body = await readJson(req) as Record<string, unknown>;
+          if (!body || Object.keys(body).some(key => key !== 'listingId') || typeof body.listingId !== 'string') throw new ApiError('BAD_PAYMENT', '매물을 확인해 주세요.');
+          send(res, 201, testPayment.prepare(user, body.listingId)); return;
+        }
+        if (req.method === 'POST' && url.pathname === '/test-payments/confirm') {
+          const body = await readJson(req) as Record<string, unknown>;
+          if (!body || Object.keys(body).some(key => !['orderId', 'providerOrderId', 'amount', 'paymentKey'].includes(key)) || typeof body.orderId !== 'string' || typeof body.providerOrderId !== 'string' || typeof body.amount !== 'number' || typeof body.paymentKey !== 'string') throw new ApiError('BAD_PAYMENT', '테스트 결제 정보를 확인해 주세요.');
+          send(res, 200, await testPayment.confirm(user, body.orderId, body.providerOrderId, body.amount, body.paymentKey)); return;
+        }
+        if (req.method === 'POST' && url.pathname === '/test-payments/cancel') {
+          const body = await readJson(req) as Record<string, unknown>;
+          if (!body || Object.keys(body).some(key => key !== 'orderId') || typeof body.orderId !== 'string') throw new ApiError('BAD_PAYMENT', '주문을 확인해 주세요.');
+          send(res, 200, testPayment.cancelPending(user, body.orderId)); return;
+        }
+        if (req.method === 'POST' && url.pathname === '/test-payments/reconcile') {
+          const body = await readJson(req) as Record<string, unknown>;
+          if (!body || Object.keys(body).some(key => key !== 'orderId') || typeof body.orderId !== 'string') throw new ApiError('BAD_PAYMENT', '주문을 확인해 주세요.');
+          send(res, 200, await testPayment.reconcile(user, body.orderId)); return;
+        }
+        if (req.method === 'POST' && url.pathname === '/test-payments/handoff') {
+          if (!handoffs) throw new ApiError('TEST_PAYMENT_NOT_CONFIGURED', '모바일 테스트 결제를 준비 중이에요.', 503, true);
+          const body = await readJson(req) as Record<string, unknown>;
+          if (!body || Object.keys(body).some(key => key !== 'orderId') || typeof body.orderId !== 'string') throw new ApiError('BAD_PAYMENT', '주문을 확인해 주세요.');
+          send(res, 200, handoffs.issue(user, body.orderId)); return;
+        }
+        throw new ApiError('NOT_FOUND', '요청 경로를 찾을 수 없습니다.', 404);
+      }
       if (req.method === 'POST' && url.pathname === '/auth/availability') {
         limited(`availability:${ip}`, 20);
         // 가입 여부 대량 조회 완화(WEB-020): 분당 20회에 더해 시간당 60회.
@@ -162,7 +195,12 @@ export function createApi(service: CheckService, origins = DEFAULT_ORIGINS, kopi
       }
       if (req.method === 'POST' && url.pathname === '/organizer/login') {
         limited(`login:${ip}`, 10);
-        send(res, 200, reports.login(await readJson(req))); return;
+        const body = await readJson(req);
+        const id = body && typeof body === 'object' && !Array.isArray(body) && typeof (body as Record<string, unknown>).accountId === 'string' ? ((body as Record<string, unknown>).accountId as string).trim() : '';
+        const key = /^[a-z0-9-]{3,40}$/.test(id) ? `organizer:${id}` : null;
+        loginGuard.check(key);
+        try { const session = reports.login(body); loginGuard.success(key); send(res, 200, session); return; }
+        catch (error) { if (error instanceof ApiError && error.code === 'INVALID_CREDENTIALS') loginGuard.fail(key); throw error; }
       }
       if (req.method === 'POST' && url.pathname === '/organizer/logout') {
         reports.authorize(req); reports.logout(reports.tokenOf(req)); send(res, 200, { ok: true }); return;
@@ -184,6 +222,8 @@ export function createApi(service: CheckService, origins = DEFAULT_ORIGINS, kopi
         send(res, 200, reports.update(account, one[1], await readJson(req))); return;
       }
       // 중개 구매 플랫폼(시연, APP-024, market.ts). 로그인·가입은 IP별 1분 20회.
+      if (testPayment && req.method === 'GET' && (url.pathname === '/shows' || /^\/shows\/[^/]+$/.test(url.pathname))) market.tx(() => market.core.expirePendingTestPayments());
+      if (testPayment && req.method === 'POST' && url.pathname === '/orders') throw new ApiError('TEST_PAYMENT_REQUIRED', '테스트 결제 승인 후 거래를 진행할 수 있어요.', 409);
       if (url.pathname.startsWith('/auth/')) limited(`auth:${ip}`, 20);
       else if (req.method !== 'GET') limited(`market:${ip}`, 120);
       // 계정별 로그인 실패 잠금(WEB-020): 같은 계정에 5회 실패하면 15분 잠금. 본문은 한 번만 읽어 market 처리기에 넘긴다.

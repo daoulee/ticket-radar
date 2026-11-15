@@ -241,7 +241,7 @@ export class GeminiProvider implements ExtractionProvider {
       let timedOut = false;
       try {
         response = await this.fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${plan[attempt]}:generateContent`, {
-          method: 'POST', redirect: 'error', signal: attemptCtl.signal,
+          method: 'POST', redirect: 'manual', signal: attemptCtl.signal,
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey }, body,
         });
       } catch (error) {

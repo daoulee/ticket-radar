@@ -1,5 +1,5 @@
 lockfile_version: '1'
-apm_version: 0.35.0
+apm_version: 0.34.0
 dependencies:
 - repo_url: addyosmani/agent-skills
   name: ci-cd-and-automation
@@ -188,7 +188,7 @@ dependencies:
 - repo_url: expo/skills
   name: expo-animation
   host: github.com
-  resolved_commit: a9e5bd3fa00b4e61f632e43f85da73aee1942582
+  resolved_commit: 7582922d039d5a96dc574757d399d22d56370f2b
   resolved_ref: main
   version: unknown
   virtual_path: plugins/expo/skills/expo-animation
@@ -205,7 +205,7 @@ dependencies:
     .agents/skills/expo-animation/RECIPES.md: sha256:4db141cb346d49231c94a95aaa50844b85a71c47ec543e9f9f5a1f453abc9883
     .agents/skills/expo-animation/SKILL.md: sha256:7af0f5e9aa4ae6887fc7938cb9ec08f8cfa922a5154e15c355d1ac53e8d659fe
     .agents/skills/expo-animation/agents/openai.yaml: sha256:7667e1a159300ee640ffb6ed4f81281dfdc0e3a789d4f3e5179c32ab3565795a
-  content_hash: sha256:a19680ec3cbbbb2bececfde338e508e14790960266d0ccf20df7b24643a9ed7a
+  content_hash: sha256:2ba67c2abc6fb802c084cc5f891bde1047bbf7bcfa31617ba8cfbae9349c7cb8
 - repo_url: expo/skills
   name: expo-design-system
   host: github.com
